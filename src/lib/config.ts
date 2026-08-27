@@ -41,6 +41,12 @@ export const BASE_URL =
 export const operator = {
   accountId: process.env.HEDERA_OPERATOR_ID ?? "",
   privateKey: process.env.HEDERA_OPERATOR_KEY ?? "",
+  /** "der" | "ecdsa" | "ed25519". Raw hex is ambiguous; DER is self-describing. */
+  keyType: process.env.HEDERA_OPERATOR_KEY_TYPE as
+    | "der"
+    | "ecdsa"
+    | "ed25519"
+    | undefined,
   topicId: process.env.HEDERA_RECEIPT_TOPIC_ID ?? "",
 };
 

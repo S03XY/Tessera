@@ -15,7 +15,8 @@
     "db:down": "node scripts/db.mjs down",
     "db:migrate": "node scripts/db.mjs migrate",
     "db:seed": "node scripts/db.mjs seed",
-    "db:reset": "node scripts/db.mjs reset"
+    "db:reset": "node scripts/db.mjs reset",
+    "provision": "node scripts/provision.mjs"
   },
   "dependencies": {
     "@hiero-ledger/sdk": "^2.85.0",

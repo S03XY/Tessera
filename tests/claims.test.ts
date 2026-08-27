@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { query, queryOne } from "@/lib/db";
 import { adjudicate, ClaimError, fileClaim, resolveClaim } from "@/lib/claims";
 import { hashResponse } from "@/lib/hash";
@@ -9,6 +9,12 @@ import { hashResponse } from "@/lib/hash";
  */
 
 const created: string[] = [];
+let baselineDeposit = 0n;
+
+// With operator keys configured, an upheld claim performs a real transfer.
+// Point the fixture at the funded agent account so the refund can land;
+// otherwise resolveClaim correctly refuses to record a payout it cannot make.
+const PAYER = process.env.AGENT_ACCOUNT_ID ?? "0.0.7326078";
 
 interface Fixture {
   callId: string;
@@ -42,7 +48,7 @@ async function makeDeliveredCall(options: {
        (service_id, payer_account, quoted_amount, paid_amount, units, asset,
         payment_tx, request_hash, response_hash, status, http_status,
         latency_ms, created_at, delivered_at)
-     VALUES ($1,'0.0.7326078',$2,$2,1,'0.0.0',$3,'reqhash',$4,'delivered',$5,120,
+     VALUES ($1,$7,$2,$2,1,'0.0.0',$3,'reqhash',$4,'delivered',$5,120,
              now() - ($6 || ' hours')::interval, now())
      RETURNING id`,
     [
@@ -52,6 +58,7 @@ async function makeDeliveredCall(options: {
       responseHash,
       options.httpStatus === undefined ? 200 : options.httpStatus,
       String(options.ageHours ?? 0),
+      PAYER,
     ],
   );
 
@@ -71,6 +78,14 @@ async function depositOf(sellerId: string): Promise<bigint> {
   return BigInt(row!.deposit_amount);
 }
 
+beforeAll(async () => {
+  const row = await queryOne<{ deposit_amount: string }>(
+    `SELECT deposit_amount FROM sellers WHERE display_name = 'Northwind APIs'`,
+  );
+  if (!row) throw new Error("fixture seller missing — run npm run db:reset");
+  baselineDeposit = BigInt(row.deposit_amount);
+});
+
 beforeEach(() => {
   created.length = 0;
 });
@@ -88,10 +103,11 @@ afterEach(async () => {
   );
   await query(`DELETE FROM claims WHERE call_id = ANY($1::uuid[])`, [created]);
   await query(`DELETE FROM calls WHERE id = ANY($1::uuid[])`, [created]);
+  // Restore whatever the fixture seller held before the test moved it.
   await query(
     `UPDATE sellers SET deposit_amount = $1, calls_disputed = 0, calls_refunded = 0
-      WHERE account_id = '0.0.7326076'`,
-    ["1800000000"],
+      WHERE display_name = 'Northwind APIs'`,
+    [String(baselineDeposit)],
   );
 });
 
@@ -238,12 +254,18 @@ describe("resolveClaim", () => {
   });
 
   it("never pays out more than the deposit holds", async () => {
-    // Paid amount far exceeds the seller's remaining deposit.
+    // Shrink the deposit first: the assertion is about the cap, and moving the
+    // seller's whole balance on every run would churn real testnet HBAR.
     const fixture = await makeDeliveredCall({ paid: "99999999999" });
-    const claim = await fileClaim({ callId: fixture.callId, reason: "wrong_data" });
+    await query(`UPDATE sellers SET deposit_amount = $2 WHERE id = $1`, [
+      fixture.sellerId,
+      "50000",
+    ]);
 
+    const claim = await fileClaim({ callId: fixture.callId, reason: "wrong_data" });
     const resolved = await resolveClaim(claim.id, "upheld", "Refund capped at the deposit.");
-    expect(BigInt(resolved.payout_amount!)).toBe(fixture.depositBefore);
+
+    expect(BigInt(resolved.payout_amount!)).toBe(50000n);
     expect(await depositOf(fixture.sellerId)).toBe(0n);
   });
 

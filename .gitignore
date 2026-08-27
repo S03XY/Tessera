@@ -11,3 +11,4 @@ playwright-report
 contracts/out
 contracts/cache
 contracts/broadcast
+.testnet-accounts.json

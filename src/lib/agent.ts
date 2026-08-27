@@ -20,6 +20,7 @@ import { X402_VERSION } from "@/lib/x402";
 export const agentBuyer = {
   accountId: process.env.AGENT_ACCOUNT_ID ?? "",
   privateKey: process.env.AGENT_PRIVATE_KEY ?? "",
+  keyType: process.env.AGENT_KEY_TYPE as "der" | "ecdsa" | "ed25519" | undefined,
 };
 
 export const agentCanPay = Boolean(agentBuyer.accountId && agentBuyer.privateKey);
@@ -240,7 +241,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   try {
     const signer = createClientHederaSigner(
       agentBuyer.accountId,
-      parsePrivateKey(agentBuyer.privateKey),
+      parsePrivateKey(agentBuyer.privateKey, agentBuyer.keyType),
       { network: X402_NETWORK },
     );
     const scheme = new ExactHederaScheme(signer);

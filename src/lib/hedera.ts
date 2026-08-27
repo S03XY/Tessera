@@ -26,22 +26,73 @@ declare global {
   var __tollgateHedera: Client | undefined;
 }
 
-/** Accepts DER, ECDSA and ED25519 key encodings without the caller choosing. */
-export function parsePrivateKey(raw: string): PrivateKey {
+export type KeyKind = "der" | "ecdsa" | "ed25519";
+
+/**
+ * Parses a Hedera private key.
+ *
+ * Do NOT try the parsers in sequence and take the first that does not throw:
+ * `fromStringDer`, `fromStringECDSA` and `fromStringED25519` all accept raw
+ * hex and silently derive a key on *their own* curve. Feeding a secp256k1 key
+ * to `fromStringDer` yields a valid-looking Ed25519 key whose signatures the
+ * network rejects as INVALID_SIGNATURE, which is very hard to diagnose.
+ *
+ * So: DER strings carry their own algorithm OID and are unambiguous. Raw hex
+ * is ambiguous and defaults to ECDSA (what the Hedera portal hands out as
+ * "HEX Encoded Private Key"), overridable with an explicit hint.
+ */
+export function parsePrivateKey(raw: string, hint?: KeyKind): PrivateKey {
   const value = raw.trim();
-  const attempts = [
-    () => PrivateKey.fromStringDer(value),
-    () => PrivateKey.fromStringECDSA(value),
-    () => PrivateKey.fromStringED25519(value),
-  ];
-  for (const attempt of attempts) {
-    try {
-      return attempt();
-    } catch {
-      continue;
-    }
+  const hex = value.replace(/^0x/i, "");
+
+  if (!/^[0-9a-f]+$/i.test(hex)) {
+    throw new Error("Hedera private key must be hex encoded");
   }
-  throw new Error("HEDERA_OPERATOR_KEY is not a recognisable private key encoding");
+
+  if (hint === "ecdsa") return PrivateKey.fromStringECDSA(hex);
+  if (hint === "ed25519") return PrivateKey.fromStringED25519(hex);
+  if (hint === "der") return PrivateKey.fromStringDer(hex);
+
+  // A DER private key begins with a SEQUENCE header and embeds its curve OID.
+  if (/^30[0-9a-f]{2}/i.test(hex) && hex.length > 68) {
+    return PrivateKey.fromStringDer(hex);
+  }
+
+  if (hex.length === 64) return PrivateKey.fromStringECDSA(hex);
+
+  throw new Error(
+    "Unrecognised Hedera private key encoding. Provide DER, or 32-byte hex with an explicit key type.",
+  );
+}
+
+/**
+ * Confirms a private key actually controls an account, by comparing the
+ * derived public key with the one consensus has on file. Cheap insurance
+ * against a silently mis-parsed curve.
+ */
+export async function assertKeyMatchesAccount(
+  accountId: string,
+  key: PrivateKey,
+): Promise<void> {
+  const response = await fetch(`${MIRROR_NODE_URL}/api/v1/accounts/${accountId}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Could not read account ${accountId} from the mirror node.`);
+  }
+
+  const body = (await response.json()) as { key?: { key?: string } };
+  const onChain = body.key?.key?.toLowerCase();
+  if (!onChain) throw new Error(`Account ${accountId} has no public key on file.`);
+
+  const derived = key.publicKey.toStringRaw().toLowerCase();
+  if (derived !== onChain) {
+    throw new Error(
+      `Key mismatch for ${accountId}: derived public key ${derived.slice(0, 16)}… ` +
+        `does not match ${onChain.slice(0, 16)}… on chain. Wrong key, or wrong curve.`,
+    );
+  }
 }
 
 export function hederaClient(): Client {
@@ -50,7 +101,10 @@ export function hederaClient(): Client {
 
   const client =
     HEDERA_NETWORK === "mainnet" ? Client.forMainnet() : Client.forTestnet();
-  client.setOperator(operator.accountId, parsePrivateKey(operator.privateKey));
+  client.setOperator(
+    operator.accountId,
+    parsePrivateKey(operator.privateKey, operator.keyType),
+  );
   // Serverless invocations are short; do not let a stuck node hang the request.
   client.setRequestTimeout(15_000);
 

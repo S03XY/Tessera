@@ -7,6 +7,24 @@
  * "agent picks the cheapest without a human" acceptance test meaningful.
  */
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/**
+ * scripts/provision.mjs replaces the invented seller account ids with real
+ * testnet accounts and records them here. Reuse them so a reseed does not
+ * point the marketplace back at accounts that cannot receive a transfer.
+ */
+const provisioned = (() => {
+  const file = join(dirname(fileURLToPath(import.meta.url)), "..", ".testnet-accounts.json");
+  if (!existsSync(file)) return {};
+  try {
+    return JSON.parse(readFileSync(file, "utf8")).sellers ?? {};
+  } catch {
+    return {};
+  }
+})();
 
 export const DEMO_AGENT_TOKEN = "tg_demo_agent_key";
 
@@ -171,7 +189,7 @@ export async function seedDemo(client) {
            SET display_name = EXCLUDED.display_name
          RETURNING id`,
         [
-          seller.account_id,
+          provisioned[seller.display_name]?.accountId ?? seller.account_id,
           seller.display_name,
           seller.contact_url,
           seller.verified ? "verified" : "unverified",
