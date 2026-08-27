@@ -184,12 +184,11 @@ integration are written from the type definitions and remain unexercised.
 
 **Hard to test**
 
-- Feature gating with no self-serve path is the blocker. We ended up building
-  a simulation harness purely to keep working, which is a signal in itself:
-  when the fastest path to a working integration is to stub the provider out,
-  the onboarding funnel has a gap.
-- Feature gating with no self-serve path is the blocker. Everything else is a
-  docs problem; this one stops evaluation outright. For hackathons especially,
+- Feature gating with no self-serve path is the blocker. Everything else here
+  is a docs problem; this one stops evaluation outright. We ended up building a
+  simulation harness purely to keep working, which is a signal in itself: when
+  the fastest path to a working integration is to stub the provider out, the
+  onboarding funnel has a gap. For hackathons especially,
   consider a time-boxed self-serve sandbox enablement — even rate-limited to a
   handful of verifications per day — so a team can determine whether the
   credential fits before committing to it.
