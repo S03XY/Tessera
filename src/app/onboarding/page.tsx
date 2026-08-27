@@ -1,5 +1,5 @@
 import { Page, PageHeader, Callout } from "@/components/ui";
-import { worldConfigured } from "@/lib/world";
+import { worldMode } from "@/lib/world";
 import { chainConfigured, operator, MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import { formatAmount } from "@/lib/money";
 import { OnboardingFlow } from "./flow";
@@ -26,7 +26,7 @@ export default function OnboardingPage() {
       </div>
 
       <OnboardingFlow
-        worldConfigured={worldConfigured}
+        worldMode={worldMode()}
         chainConfigured={chainConfigured}
         treasury={operator.accountId || "not configured"}
         minimumDeposit={MIN_DEPOSIT_TINYBARS.toString()}

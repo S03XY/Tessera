@@ -29,6 +29,13 @@ self-serve that during a hackathon weekend, so:
 - The client integration, RP-context signing, proof forwarding and backend
   verification are all implemented against the documented v4 API and the
   shipped IDKit type definitions.
+- Because the credential could not be enabled, we added a clearly-labelled
+  simulation mode (`WORLD_SIMULATION=1`) so the rest of the product could be
+  built and demonstrated. It records the credential as
+  `selfie_check_simulated`, never as a real one; the UI labels every such
+  seller as simulated; and `/api/health` reports `world_id: "simulated"`. It
+  is not a Selfie Check and we are not presenting it as one. Removing the flag
+  and setting the RP signing key switches to the real flow with no code change.
 - The seller gate is implemented and tested: an unverified account is refused
   a listing, and the one-human-one-account constraint is enforced.
 - The actual capture → proof → verify round trip through the Sandbox App is
@@ -177,6 +184,10 @@ integration are written from the type definitions and remain unexercised.
 
 **Hard to test**
 
+- Feature gating with no self-serve path is the blocker. We ended up building
+  a simulation harness purely to keep working, which is a signal in itself:
+  when the fastest path to a working integration is to stub the provider out,
+  the onboarding funnel has a gap.
 - Feature gating with no self-serve path is the blocker. Everything else is a
   docs problem; this one stops evaluation outright. For hackathons especially,
   consider a time-boxed self-serve sandbox enablement — even rate-limited to a

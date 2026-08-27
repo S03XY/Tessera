@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { signRequest } from "@worldcoin/idkit-core/signing";
 import { query, queryOne, transaction } from "@/lib/db";
 
@@ -27,6 +28,36 @@ export const world = {
 
 /** True when a real Selfie Check round-trip is possible. */
 export const worldConfigured = Boolean(world.appId && world.rpId && world.signingKey);
+
+/**
+ * Development simulation.
+ *
+ * Selfie Check is feature-gated by World, so the real capture flow cannot be
+ * exercised until they enable it for the app. This lets the seller gate, the
+ * one-human-one-account rule and the demo be built and shown in the meantime.
+ *
+ * It is deliberately loud rather than convenient:
+ *   - the credential is stored as `selfie_check_simulated`, never as a real one
+ *   - the UI labels every simulated seller as simulated
+ *   - /api/health reports it
+ *
+ * A simulated pass is NOT a Selfie Check pass and does not satisfy World's
+ * requirement to demo through the Sandbox App. Turn it off by removing
+ * WORLD_SIMULATION once the real credential is enabled.
+ */
+export const worldSimulation = process.env.WORLD_SIMULATION === "1";
+
+export const SIMULATED_CREDENTIAL = "selfie_check_simulated";
+export const REAL_CREDENTIAL = "selfie_check";
+
+/** Selfie Check can run either for real, or simulated, or not at all. */
+export type WorldMode = "live" | "simulated" | "unavailable";
+
+export function worldMode(): WorldMode {
+  if (worldConfigured) return "live";
+  if (worldSimulation && world.appId) return "simulated";
+  return "unavailable";
+}
 
 const VERIFY_BASE = "https://developer.world.org/api/v4/verify";
 
@@ -93,7 +124,26 @@ interface VerifyApiResult {
  * The proof is forwarded verbatim — the client's own claim about whether it
  * passed is never trusted, only World's answer.
  */
-export async function verifyProof(idkitResult: unknown): Promise<{ nullifier: string }> {
+export interface VerifiedProof {
+  nullifier: string;
+  credential: typeof REAL_CREDENTIAL | typeof SIMULATED_CREDENTIAL;
+}
+
+/**
+ * A simulated pass.
+ *
+ * The nullifier is derived from a caller-supplied persona so the uniqueness
+ * rule is still exercised: verifying twice with the same persona collides
+ * exactly as two proofs from one human would.
+ */
+export function simulateProof(persona: string): VerifiedProof {
+  const digest = createHash("sha256")
+    .update(`tollgate-simulated-human:${persona.trim().toLowerCase()}`)
+    .digest("hex");
+  return { nullifier: `sim_${digest.slice(0, 40)}`, credential: SIMULATED_CREDENTIAL };
+}
+
+export async function verifyProof(idkitResult: unknown): Promise<VerifiedProof> {
   if (!worldConfigured) {
     throw new WorldError("World ID is not configured.", "not_configured", 503);
   }
@@ -135,7 +185,7 @@ export async function verifyProof(idkitResult: unknown): Promise<{ nullifier: st
     throw new WorldError("No credential in the proof passed verification.", "no_passing_credential");
   }
 
-  return { nullifier: passed.nullifier };
+  return { nullifier: passed.nullifier, credential: REAL_CREDENTIAL };
 }
 
 /**
@@ -148,6 +198,7 @@ export async function verifyProof(idkitResult: unknown): Promise<{ nullifier: st
 export async function markVerified(
   accountId: string,
   nullifier: string,
+  credential: string,
   displayName?: string,
 ): Promise<{ id: string; account_id: string; display_name: string }> {
   const clash = await queryOne<{ account_id: string }>(
@@ -171,7 +222,7 @@ export async function markVerified(
     }>(
       `INSERT INTO sellers (account_id, display_name, verification_status,
                             verified_at, world_nullifier, world_credential)
-       VALUES ($1, $2, 'verified', now(), $3, 'selfie_check')
+       VALUES ($1, $2, 'verified', now(), $3, $4)
        ON CONFLICT (account_id) DO UPDATE
          SET verification_status = 'verified',
              verified_at         = now(),
@@ -179,7 +230,7 @@ export async function markVerified(
              world_credential    = EXCLUDED.world_credential,
              display_name        = COALESCE(NULLIF($2, ''), sellers.display_name)
        RETURNING id, account_id, display_name`,
-      [accountId, displayName ?? `Seller ${accountId}`, nullifier],
+      [accountId, displayName ?? `Seller ${accountId}`, nullifier, credential],
     );
     return rows[0];
   });
@@ -197,10 +248,11 @@ export async function verificationStatus(accountId: string) {
     verification_status: string;
     verified_at: string | null;
     deposit_amount: string;
+    world_credential: string | null;
     service_count: string;
   }>(
     `SELECT sel.account_id, sel.display_name, sel.verification_status,
-            sel.verified_at, sel.deposit_amount,
+            sel.verified_at, sel.deposit_amount, sel.world_credential,
             (SELECT count(*)::text FROM services WHERE seller_id = sel.id) AS service_count
        FROM sellers sel WHERE sel.account_id = $1`,
     [accountId],

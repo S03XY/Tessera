@@ -505,3 +505,21 @@ export function VerifiedTick({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** Simulated Selfie Check passes must never render as the real thing. */
+export const SIMULATED_CREDENTIAL = "selfie_check_simulated";
+
+export function VerificationBadge({ credential }: { credential: string | null }) {
+  if (credential === SIMULATED_CREDENTIAL) {
+    return (
+      <Badge tone="warn" dot>
+        Selfie Check (simulated)
+      </Badge>
+    );
+  }
+  return (
+    <Badge tone="ok" dot>
+      Selfie Check
+    </Badge>
+  );
+}

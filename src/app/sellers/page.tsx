@@ -13,6 +13,7 @@ import {
   Table,
   Td,
   Th,
+  VerificationBadge,
   VerifiedTick,
 } from "@/components/ui";
 
@@ -76,9 +77,7 @@ export default async function SellersPage() {
                     </Td>
                     <Td className="whitespace-nowrap">
                       {seller.verification_status === "verified" ? (
-                        <Badge tone="ok" dot>
-                          Selfie Check
-                        </Badge>
+                        <VerificationBadge credential={seller.world_credential} />
                       ) : (
                         <Badge tone="warn" dot>
                           unverified

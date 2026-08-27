@@ -27,19 +27,20 @@ interface Status {
   display_name: string;
   verification_status: string;
   deposit_amount: string;
+  world_credential: string | null;
   service_count: string;
 }
 
 type StepState = "todo" | "active" | "done";
 
 export function OnboardingFlow({
-  worldConfigured,
+  worldMode,
   chainConfigured,
   treasury,
   minimumDeposit,
   minimumLabel,
 }: {
-  worldConfigured: boolean;
+  worldMode: "live" | "simulated" | "unavailable";
   chainConfigured: boolean;
   treasury: string;
   minimumDeposit: string;
@@ -141,7 +142,7 @@ export function OnboardingFlow({
         state={verified ? "done" : accountId.trim() ? "active" : "todo"}
         description="One human, one seller account. The nullifier is stored under a unique constraint, so the same person cannot register twice."
       >
-        {!worldConfigured ? (
+        {worldMode === "unavailable" ? (
           <Callout tone="warn" title="World ID is not configured">
             Set <span className="font-mono">WORLD_APP_ID</span>,{" "}
             <span className="font-mono">WORLD_RP_ID</span> and{" "}
@@ -151,14 +152,24 @@ export function OnboardingFlow({
             will work, including in the Sandbox App.
           </Callout>
         ) : verified ? (
-          <Callout tone="ok" title="Verified">
-            Selfie Check passed. This account is a distinct, live human.
+          <Callout
+            tone={status?.world_credential === "selfie_check_simulated" ? "warn" : "ok"}
+            title={
+              status?.world_credential === "selfie_check_simulated"
+                ? "Verified (simulated)"
+                : "Verified"
+            }
+          >
+            {status?.world_credential === "selfie_check_simulated"
+              ? "Recorded via a simulated pass, not a real Selfie Check."
+              : "Selfie Check passed. This account is a distinct, live human."}
           </Callout>
         ) : (
           <SelfieCheckButton
             accountId={accountId.trim()}
             displayName={displayName.trim()}
             disabled={!accountId.trim()}
+            simulated={worldMode === "simulated"}
             onVerified={() => refresh()}
           />
         )}

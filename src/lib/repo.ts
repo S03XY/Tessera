@@ -11,6 +11,7 @@ export interface SellerRow {
   contact_url: string | null;
   verification_status: "unverified" | "verified" | "revoked";
   verified_at: string | null;
+  world_credential: string | null;
   deposit_amount: string;
   deposit_asset: string;
   deposit_tx: string | null;
@@ -48,6 +49,7 @@ export interface ServiceListing extends ServiceRow {
   seller_name: string;
   seller_account: string;
   seller_status: SellerRow["verification_status"];
+  seller_credential: string | null;
   seller_deposit: string;
   success_rate: number | null;
 }
@@ -80,6 +82,7 @@ const LISTING_SELECT = `
          sel.display_name        AS seller_name,
          sel.account_id          AS seller_account,
          sel.verification_status AS seller_status,
+         sel.world_credential    AS seller_credential,
          sel.deposit_amount      AS seller_deposit,
          CASE WHEN (s.calls_ok + s.calls_failed) > 0
               THEN s.calls_ok::float / (s.calls_ok + s.calls_failed)

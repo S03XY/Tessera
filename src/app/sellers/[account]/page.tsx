@@ -15,6 +15,7 @@ import {
   Table,
   Td,
   Th,
+  VerificationBadge,
 } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -62,9 +63,7 @@ export default async function SellerPage({
             {seller.display_name}
           </h1>
           {seller.verification_status === "verified" ? (
-            <Badge tone="ok" dot>
-              Selfie Check verified
-            </Badge>
+            <VerificationBadge credential={seller.world_credential} />
           ) : (
             <Badge tone="warn" dot>
               unverified

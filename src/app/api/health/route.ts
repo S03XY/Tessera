@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbReachable } from "@/lib/db";
 import { facilitatorSupportsNetwork } from "@/lib/x402";
+import { worldMode } from "@/lib/world";
 import {
   chainConfigured,
   receiptsConfigured,
@@ -32,6 +33,8 @@ export async function GET() {
         chain_operator: chainConfigured,
         hcs_receipts: receiptsConfigured,
       },
+      // "simulated" means Selfie Check passes are stand-ins, not real proofs.
+      world_id: worldMode(),
       network: X402_NETWORK,
       facilitator_url: FACILITATOR_URL,
     },

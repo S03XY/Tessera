@@ -79,6 +79,7 @@ npm run dev         # http://localhost:3000
 | `HEDERA_RECEIPT_TOPIC_ID` | Writing call/refund receipts to a consensus topic |
 | `AGENT_ACCOUNT_ID` / `AGENT_PRIVATE_KEY` | The buyer agent signing and completing real payments |
 | `WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` | World ID Selfie Check |
+| `WORLD_SIMULATION=1` | Stand-in for Selfie Check until World enables the credential |
 | `CRON_SECRET` | Guards the receipt-drain cron endpoint |
 
 Testnet accounts come from [portal.hedera.com](https://portal.hedera.com).
@@ -87,16 +88,23 @@ World credentials come from [developer.world.org](https://developer.world.org).
 > **Selfie Check is feature-gated.** It must be enabled for your app by World
 > before it works — including in the Sandbox App. Request access through your
 > World point of contact before relying on it.
+>
+> Until then, set `WORLD_SIMULATION=1` to record clearly-labelled simulated
+> passes so the seller gate and the demo still work. A simulated pass stores
+> the credential as `selfie_check_simulated`, is labelled as simulated
+> everywhere in the UI, and is reported by `/api/health` as
+> `world_id: "simulated"`. **It is not a Selfie Check** and does not satisfy
+> World's requirement to demo through the Sandbox App.
 
 ### 5. Tests
 
 ```bash
 npm run dev     # the HTTP suites need a running gateway
-npm test        # 165 tests
+npm test        # 177 tests
 ```
 
 The suite covers unit logic, a live call against the Blocky402 facilitator,
-end-to-end HTTP against the gateway, and the dispute ledger. Tests that create
+end-to-end HTTP against the gateway, the dispute ledger and the seller gate. Tests that create
 rows clean up after themselves, so the seeded fixtures survive repeated runs.
 
 ### Deploying to Vercel
@@ -255,7 +263,7 @@ commit SHA so they become permanent links.
 | Treated as an abuse-prevention signal | [`src/lib/world.ts:148`](src/lib/world.ts#L148) — nullifier under a `UNIQUE` constraint: one human, one seller |
 | Enforced, not decorative | [`src/app/api/services/create/route.ts:83`](src/app/api/services/create/route.ts#L83) — listing refused without verification |
 | Server-side proof verification | [`src/lib/world.ts:96`](src/lib/world.ts#L96) |
-| Tested via the Sandbox App | `WORLD_ENVIRONMENT=sandbox`; see [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) |
+| Tested via the Sandbox App | **Not yet** — credential is feature-gated. See [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) |
 | Feedback document | [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) |
 
 ### Cross-cutting
