@@ -305,3 +305,53 @@ export async function getClaimForCall(callId: string) {
     [callId],
   );
 }
+
+export interface DisputeWindow {
+  disputable: boolean;
+  reason: string | null;
+  hoursRemaining: number;
+}
+
+/**
+ * Whether a call can still be disputed.
+ *
+ * The elapsed time is computed by Postgres rather than in the render, so the
+ * page and `fileClaim` agree on one clock — and a server component stays free
+ * of render-time impurity.
+ */
+export async function disputeWindow(callId: string): Promise<DisputeWindow> {
+  const row = await queryOne<{
+    status: string;
+    age_hours: string;
+  }>(
+    `SELECT status,
+            (EXTRACT(EPOCH FROM (now() - created_at)) / 3600)::text AS age_hours
+       FROM calls WHERE id = $1`,
+    [callId],
+  );
+
+  if (!row) {
+    return { disputable: false, reason: "No such call.", hoursRemaining: 0 };
+  }
+
+  if (row.status !== "delivered") {
+    return {
+      disputable: false,
+      reason: `Only a delivered call can be disputed; this one is ${row.status}.`,
+      hoursRemaining: 0,
+    };
+  }
+
+  const age = Number(row.age_hours);
+  const remaining = DISPUTE_WINDOW_HOURS - age;
+
+  if (remaining <= 0) {
+    return {
+      disputable: false,
+      reason: `The ${DISPUTE_WINDOW_HOURS}h dispute window closed ${Math.floor(-remaining)}h ago.`,
+      hoursRemaining: 0,
+    };
+  }
+
+  return { disputable: true, reason: null, hoursRemaining: remaining };
+}

@@ -23,7 +23,6 @@ export class ChainNotConfiguredError extends Error {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __tollgateHedera: Client | undefined;
 }
 

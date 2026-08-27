@@ -24,7 +24,13 @@ export function ServiceSearch({
   const first = useRef(true);
 
   // Keep the field in sync when the user navigates back to a prior search.
-  useEffect(() => setValue(defaultQuery), [defaultQuery]);
+  // Adjusting state during render is React's documented alternative to
+  // setState-in-effect: it re-renders before paint instead of cascading.
+  const [syncedQuery, setSyncedQuery] = useState(defaultQuery);
+  if (defaultQuery !== syncedQuery) {
+    setSyncedQuery(defaultQuery);
+    setValue(defaultQuery);
+  }
 
   useEffect(() => {
     if (first.current) {

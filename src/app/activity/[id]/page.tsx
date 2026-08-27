@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCallById } from "@/lib/repo";
-import { getClaimForCall } from "@/lib/claims";
-import { DISPUTE_WINDOW_HOURS } from "@/lib/config";
+import { disputeWindow, getClaimForCall } from "@/lib/claims";
 import { DisputePanel } from "./dispute";
 import { query } from "@/lib/db";
 import { formatAmount } from "@/lib/money";
@@ -39,20 +38,10 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
   );
   const receipt = outbox[0] ?? null;
 
-  const claim = await getClaimForCall(call.id);
-  const ageHours = (Date.now() - new Date(call.created_at).getTime()) / 3_600_000;
-
-  let disputable = true;
-  let blockedReason: string | null = null;
-  if (call.status !== "delivered") {
-    disputable = false;
-    blockedReason = `Only a delivered call can be disputed; this one is ${call.status}.`;
-  } else if (ageHours > DISPUTE_WINDOW_HOURS) {
-    disputable = false;
-    blockedReason = `The ${DISPUTE_WINDOW_HOURS}h dispute window closed ${Math.floor(
-      ageHours - DISPUTE_WINDOW_HOURS,
-    )}h ago.`;
-  }
+  const [claim, window] = await Promise.all([
+    getClaimForCall(call.id),
+    disputeWindow(call.id),
+  ]);
 
   return (
     <Page>
@@ -249,8 +238,8 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
                   }
                 : null
             }
-            disputable={disputable}
-            reason={blockedReason}
+            disputable={window.disputable}
+            reason={window.reason}
           />
         </div>
       </div>

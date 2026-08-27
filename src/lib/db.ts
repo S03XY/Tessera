@@ -15,7 +15,6 @@ types.setTypeParser(types.builtins.NUMERIC, (value) => value);
 types.setTypeParser(types.builtins.INT8, (value) => value);
 
 declare global {
-  // eslint-disable-next-line no-var
   var __tollgatePool: Pool | undefined;
 }
 
