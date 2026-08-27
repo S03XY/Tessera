@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { discoverServices, listCategories } from "@/lib/repo";
 import { formatAmount, isPriceUnit, PRICE_UNIT_LABEL } from "@/lib/money";
+import { MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import {
   Badge,
   EmptyState,
@@ -163,7 +164,7 @@ async function Results({
                   {service.description}
                 </p>
               </Td>
-              <Td>
+              <Td className="whitespace-nowrap">
                 <div className="flex items-center gap-1.5">
                   <Link
                     href={`/sellers/${service.seller_account}`}
@@ -174,8 +175,13 @@ async function Results({
                   {service.seller_status === "verified" && <VerifiedTick />}
                 </div>
               </Td>
-              <Td>
+              <Td className="whitespace-nowrap">
                 <Badge tone="neutral">per {PRICE_UNIT_LABEL[service.price_unit]}</Badge>
+                {!payable(service) && (
+                  <Badge tone="warn" className="ml-1.5">
+                    not payable
+                  </Badge>
+                )}
               </Td>
               <Td align="right">
                 {service.success_rate === null ? (
@@ -186,9 +192,12 @@ async function Results({
                   </span>
                 )}
               </Td>
-              <Td align="right">
+              <Td align="right" className="whitespace-nowrap">
                 <span className="tnum font-mono text-[12.5px] text-ink">
                   {formatAmount(service.price_amount, service.asset_decimals)} ℏ
+                </span>
+                <span className="ml-1 text-[11.5px] text-ink-4">
+                  /{PRICE_UNIT_LABEL[service.price_unit]}
                 </span>
               </Td>
             </tr>
@@ -196,6 +205,20 @@ async function Results({
         </tbody>
       </Table>
     </Panel>
+  );
+}
+
+/** Mirrors the gateway's listing gate so the browse view cannot promise a
+ *  call that /x402 would refuse. */
+function payable(service: {
+  seller_status: string;
+  seller_deposit: string;
+  status: string;
+}): boolean {
+  return (
+    service.status === "active" &&
+    service.seller_status === "verified" &&
+    BigInt(service.seller_deposit) >= MIN_DEPOSIT_TINYBARS
   );
 }
 

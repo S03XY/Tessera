@@ -1,4 +1,5 @@
 import { query, queryOne } from "@/lib/db";
+import { MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import type { PriceUnit } from "@/lib/money";
 
 /* -------------------------------------------------------------------- Types */
@@ -94,6 +95,12 @@ export interface DiscoverOptions {
   limit?: number;
   offset?: number;
   includeInactive?: boolean;
+  /**
+   * Hide listings the gateway would refuse anyway: unverified sellers and
+   * sellers whose dispute deposit has fallen below the floor. Agents should
+   * never be handed a listing they cannot actually buy.
+   */
+  payableOnly?: boolean;
 }
 
 /**
@@ -103,7 +110,14 @@ export interface DiscoverOptions {
 export async function discoverServices(
   options: DiscoverOptions = {},
 ): Promise<ServiceListing[]> {
-  const { q, category, maxPrice, unit, includeInactive = false } = options;
+  const {
+    q,
+    category,
+    maxPrice,
+    unit,
+    includeInactive = false,
+    payableOnly = false,
+  } = options;
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
   const offset = Math.max(options.offset ?? 0, 0);
 
@@ -111,6 +125,13 @@ export async function discoverServices(
   const params: unknown[] = [];
 
   if (!includeInactive) where.push(`s.status = 'active'`);
+
+  if (payableOnly) {
+    params.push(MIN_DEPOSIT_TINYBARS.toString());
+    where.push(
+      `sel.verification_status = 'verified' AND sel.deposit_amount >= $${params.length}::numeric`,
+    );
+  }
 
   if (q && q.trim()) {
     params.push(q.trim());

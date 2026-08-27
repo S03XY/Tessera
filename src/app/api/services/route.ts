@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { discoverServices } from "@/lib/repo";
 import { isPriceUnit } from "@/lib/money";
-import { BASE_URL, MIN_DEPOSIT_TINYBARS } from "@/lib/config";
+import { BASE_URL } from "@/lib/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,13 +36,11 @@ export async function GET(request: NextRequest) {
     unit,
     maxPrice,
     limit,
+    // An agent must never be handed a listing the gateway would refuse.
+    payableOnly: true,
   });
 
-  // A listing whose seller has slipped below the deposit floor cannot be paid,
-  // so it must not appear in a discovery result an agent will act on.
-  const payable = services.filter(
-    (service) => BigInt(service.seller_deposit) >= MIN_DEPOSIT_TINYBARS,
-  );
+  const payable = services;
 
   return NextResponse.json(
     {

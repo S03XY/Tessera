@@ -131,7 +131,13 @@ function Handshake() {
 /* ------------------------------------------------------- Cheapest services */
 
 async function CheapestServices() {
-  const services = await discoverServices({ limit: 6 });
+  // per_call only: comparing an atomic per_row price against a per_call price
+  // would rank a cheap-looking row feed above an actually cheaper call.
+  const services = await discoverServices({
+    limit: 6,
+    unit: "per_call",
+    payableOnly: true,
+  });
 
   return (
     <Panel className="overflow-hidden">
@@ -174,10 +180,10 @@ async function CheapestServices() {
                     {service.description}
                   </p>
                 </Td>
-                <Td>
+                <Td className="whitespace-nowrap">
                   <span className="text-[12.5px]">{service.seller_name}</span>
                 </Td>
-                <Td align="right">
+                <Td align="right" className="whitespace-nowrap">
                   <span className="tnum font-mono text-[12.5px] text-ink">
                     {formatAmount(service.price_amount, service.asset_decimals)} ℏ
                   </span>

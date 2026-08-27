@@ -34,6 +34,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "dotenv": "^17.4.2",
+    "playwright": "^1.62.1",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",

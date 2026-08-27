@@ -45,7 +45,7 @@ export function ServiceSearch({
   return (
     <div className="rounded-lg border border-line bg-bg">
       <div className="flex flex-wrap items-center gap-2 p-2.5">
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-[240px] flex-1">
           <SearchIcon />
           <input
             type="search"
@@ -66,17 +66,21 @@ export function ServiceSearch({
           )}
         </div>
 
-        <Select
-          value={unit}
-          onChange={(event) => setUnit(event.target.value)}
-          aria-label="Filter by metering unit"
-          className="h-9 w-auto min-w-[132px]"
-        >
-          <option value="">Any metering</option>
-          <option value="per_call">Per call</option>
-          <option value="per_token">Per token</option>
-          <option value="per_row">Per row</option>
-        </Select>
+        {/* Wrapped rather than width-overridden: `w-auto` and the control's
+            own `w-full` are the same specificity, so which one wins depends on
+            stylesheet order, not class order. */}
+        <div className="w-[150px] shrink-0">
+          <Select
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+            aria-label="Filter by metering unit"
+          >
+            <option value="">Any metering</option>
+            <option value="per_call">Per call</option>
+            <option value="per_token">Per token</option>
+            <option value="per_row">Per row</option>
+          </Select>
+        </div>
 
         {(value || unit) && (
           <Button
