@@ -1,0 +1,289 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Tollgate design tokens — light theme only.
+   Warm-neutral greys, hairline borders, small radii, one interactive accent.
+   ========================================================================== */
+
+@theme {
+  /* Ink ------------------------------------------------------------------ */
+  --color-ink: #16181c;
+  --color-ink-2: #565a62;
+  --color-ink-3: #8a8e96;
+  --color-ink-4: #adb1b8;
+
+  /* Surfaces ------------------------------------------------------------- */
+  --color-bg: #ffffff;
+  --color-bg-subtle: #fafaf9;
+  --color-bg-sunken: #f4f4f2;
+  --color-bg-inset: #eeeeeb;
+
+  /* Lines ---------------------------------------------------------------- */
+  --color-line: #e7e7e4;
+  --color-line-2: #d6d6d2;
+  --color-line-3: #c2c2bd;
+
+  /* Accent (interactive) ------------------------------------------------- */
+  --color-accent: #1a56db;
+  --color-accent-hover: #1749bb;
+  --color-accent-soft: #eef2ff;
+  --color-accent-line: #c7d5f8;
+
+  /* Semantic ------------------------------------------------------------- */
+  --color-ok: #0f7b52;
+  --color-ok-soft: #e9f6f0;
+  --color-ok-line: #b9e0cf;
+
+  --color-warn: #9a5b00;
+  --color-warn-soft: #fdf4e5;
+  --color-warn-line: #ecd7ac;
+
+  --color-bad: #b42318;
+  --color-bad-soft: #fdecea;
+  --color-bad-line: #f3c9c4;
+
+  /* Radii ---------------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  /* Type ----------------------------------------------------------------- */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo,
+    monospace;
+
+  /* Motion --------------------------------------------------------------- */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Numerals in tables, prices and counters must not jitter. */
+  .tnum,
+  table,
+  time,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--color-ink);
+    font-weight: 560;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+
+  ::selection {
+    background: #dbe4fb;
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* Native form controls inherit the type scale. */
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Firefox / WebKit scrollbars inside scroll regions. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-2) transparent;
+  }
+}
+
+/* ==========================================================================
+   Motion primitives
+   ========================================================================== */
+
+@keyframes tg-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tg-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes tg-shimmer {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes tg-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 34%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+}
+
+@keyframes tg-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes tg-tick {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@utility animate-fade-up {
+  animation: tg-fade-up 0.34s var(--ease-out-soft) both;
+}
+
+@utility animate-fade-in {
+  animation: tg-fade 0.24s var(--ease-out-soft) both;
+}
+
+@utility animate-spin-slow {
+  animation: tg-spin 0.7s linear infinite;
+}
+
+@utility animate-pulse-ring {
+  animation: tg-pulse-ring 1.7s var(--ease-out-soft) infinite;
+}
+
+@utility animate-tick {
+  stroke-dasharray: 24;
+  animation: tg-tick 0.4s var(--ease-out-soft) 0.06s both;
+}
+
+/* Skeleton shimmer used by every loading state. */
+@utility skeleton {
+  background-color: var(--color-bg-inset);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 100%
+  );
+  background-size: 180% 100%;
+  background-repeat: no-repeat;
+  animation: tg-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Indeterminate top-of-panel progress bar. */
+@utility bar-indeterminate {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-bg-inset);
+}
+
+/* Stagger children on mount without per-item JS. */
+@utility stagger {
+  & > * {
+    animation: tg-fade-up 0.34s var(--ease-out-soft) both;
+  }
+  & > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  & > *:nth-child(2) {
+    animation-delay: 34ms;
+  }
+  & > *:nth-child(3) {
+    animation-delay: 68ms;
+  }
+  & > *:nth-child(4) {
+    animation-delay: 102ms;
+  }
+  & > *:nth-child(5) {
+    animation-delay: 136ms;
+  }
+  & > *:nth-child(6) {
+    animation-delay: 170ms;
+  }
+  & > *:nth-child(7) {
+    animation-delay: 204ms;
+  }
+  & > *:nth-child(8) {
+    animation-delay: 238ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
