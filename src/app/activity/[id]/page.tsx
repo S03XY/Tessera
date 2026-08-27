@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCallById } from "@/lib/repo";
+import { getClaimForCall } from "@/lib/claims";
+import { DISPUTE_WINDOW_HOURS } from "@/lib/config";
+import { DisputePanel } from "./dispute";
 import { query } from "@/lib/db";
 import { formatAmount } from "@/lib/money";
 import { hashscanTx, hashscanTopic, hashscanAccount, receiptsConfigured } from "@/lib/config";
@@ -35,6 +38,21 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
     [call.id],
   );
   const receipt = outbox[0] ?? null;
+
+  const claim = await getClaimForCall(call.id);
+  const ageHours = (Date.now() - new Date(call.created_at).getTime()) / 3_600_000;
+
+  let disputable = true;
+  let blockedReason: string | null = null;
+  if (call.status !== "delivered") {
+    disputable = false;
+    blockedReason = `Only a delivered call can be disputed; this one is ${call.status}.`;
+  } else if (ageHours > DISPUTE_WINDOW_HOURS) {
+    disputable = false;
+    blockedReason = `The ${DISPUTE_WINDOW_HOURS}h dispute window closed ${Math.floor(
+      ageHours - DISPUTE_WINDOW_HOURS,
+    )}h ago.`;
+  }
 
   return (
     <Page>
@@ -215,6 +233,26 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
             )}
           </div>
         </Panel>
+
+        <div className="lg:col-span-2">
+          <DisputePanel
+            callId={call.id}
+            existing={
+              claim
+                ? {
+                    id: claim.id,
+                    status: claim.status,
+                    reason: claim.reason,
+                    resolution: claim.resolution,
+                    payout_amount: claim.payout_amount,
+                    payout_tx: claim.payout_tx,
+                  }
+                : null
+            }
+            disputable={disputable}
+            reason={blockedReason}
+          />
+        </div>
       </div>
     </Page>
   );

@@ -10,6 +10,7 @@ await page.goto(`${BASE}/agent`, { waitUntil: "networkidle" });
 await page.click("text=Run agent");
 await page.waitForSelector("text=Run trace", { timeout: 40000 });
 await page.waitForTimeout(900);
+await page.evaluate(() => window.scrollTo(0, 0));
 await page.screenshot({ path: "/tmp/shots/agent.png", fullPage: true });
 const steps = await page.$$eval("ol li p.font-medium", (els) => els.map((e) => e.textContent.trim()));
 console.log("trace steps:", steps.join(" -> "));

@@ -14,6 +14,7 @@ page.on("pageerror", (e) => errors.push(`[pageerror] ${e.message}`));
 for (const [name, path] of pages) {
   const res = await page.goto(BASE + path, { waitUntil: "networkidle", timeout: 45000 });
   await page.waitForTimeout(500);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
   console.log(`${String(res.status()).padEnd(4)} ${path.padEnd(38)} -> ${name}.png`);
 }

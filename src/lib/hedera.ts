@@ -1,8 +1,10 @@
 import {
   Client,
+  Hbar,
   PrivateKey,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
+  TransferTransaction,
 } from "@hiero-ledger/sdk";
 import { HEDERA_NETWORK, operator, chainConfigured } from "@/lib/config";
 
@@ -92,4 +94,32 @@ export async function submitReceipt(
     sequenceNumber: receipt.topicSequenceNumber?.toString() ?? "0",
     transactionId: response.transactionId.toString(),
   };
+}
+
+/**
+ * Pays HBAR from the marketplace operator to `toAccountId`.
+ *
+ * Used for dispute refunds, which come out of the seller's deposit held by
+ * the marketplace. Returns the transaction id so the refund is auditable on
+ * HashScan next to the original payment.
+ */
+export async function transferHbar(
+  toAccountId: string,
+  tinybars: bigint,
+): Promise<string> {
+  if (tinybars <= 0n) throw new Error("refund amount must be positive");
+
+  const client = hederaClient();
+  const amount = Hbar.fromTinybars(tinybars.toString());
+
+  const response = await new TransferTransaction()
+    .addHbarTransfer(operator.accountId, amount.negated())
+    .addHbarTransfer(toAccountId, amount)
+    .setTransactionMemo("Tollgate dispute refund")
+    .execute(client);
+
+  // execute() only pre-checks; consensus failures surface via the receipt.
+  await response.getReceipt(client);
+
+  return response.transactionId.toString();
 }
