@@ -111,7 +111,7 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_380px]">
+      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[1fr_380px]">
         {/* Left column ------------------------------------------------- */}
         <div className="space-y-5">
           <QuotePanel

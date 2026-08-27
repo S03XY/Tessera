@@ -23,7 +23,7 @@ export default function HomePage() {
       <Hero />
       <div className="mx-auto w-full max-w-[1120px] px-5 pb-14 sm:px-8">
         <Handshake />
-        <div className="mt-10 grid gap-5 lg:grid-cols-[1fr_320px]">
+        <div className="mt-10 grid items-start gap-5 lg:grid-cols-[1fr_320px]">
           <Suspense fallback={<CheapestSkeleton />}>
             <CheapestServices />
           </Suspense>
