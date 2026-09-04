@@ -9,6 +9,14 @@ import { assertPublicUrl, fetchUpstream, UnsafeUrlError } from "@/lib/ssrf";
 import { MIN_DEPOSIT_TINYBARS, BASE_URL } from "@/lib/config";
 import { enqueueCallReceipt } from "@/lib/receipts";
 import {
+  executeSubgraphQuery,
+  GraphNotConfiguredError,
+  GraphQueryError,
+  readGraphPrice,
+  trimGraphResult,
+  type GraphPrice,
+} from "@/lib/graph";
+import {
   buildRequirements,
   decodePaymentHeader,
   encodeSettlementHeader,
@@ -183,54 +191,116 @@ async function handle(
 
   /* ---------------------------------------------------------- 3. deliver */
 
-  let upstreamUrl: URL;
-  try {
-    upstreamUrl = await assertPublicUrl(service.endpoint_url);
-  } catch (err) {
-    if (err instanceof UnsafeUrlError) {
-      await recordFailure(service.id, quoted, service.asset, payer, err.message);
-      return problem(502, "endpoint_rejected", `Upstream endpoint rejected: ${err.message}`);
+  let upstreamStatus: number;
+  let upstreamContentType: string;
+  let metered: { body: string; units: number; truncated: boolean };
+
+  /**
+   * The second leg of a Graph-backed purchase: what the same query lists for
+   * bought straight from The Graph. Read from their own 402 challenge, so the
+   * number is the supplier's rather than ours.
+   */
+  let graphPrice: GraphPrice | null = null;
+
+  if (service.upstream_kind === "graph_subgraph") {
+    // The CHECK constraint on services guarantees both are present.
+    const subgraphId = service.upstream_ref as string;
+    const document = service.upstream_query as string;
+
+    let data: unknown;
+    try {
+      data = await executeSubgraphQuery(subgraphId, document);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      await recordFailure(service.id, quoted, service.asset, payer, reason);
+
+      // Same rule as the http path: nothing settled, so the payer keeps their
+      // money. Only the diagnosis differs.
+      if (err instanceof GraphNotConfiguredError) {
+        return problem(503, "graph_not_configured", reason);
+      }
+      const unreachable = err instanceof GraphQueryError && err.status === 503;
+      return problem(
+        unreachable ? 504 : 502,
+        unreachable ? "graph_unreachable" : "graph_error",
+        `The Graph did not answer: ${reason}. No payment was settled.`,
+      );
     }
-    throw err;
-  }
 
-  let upstream;
-  try {
-    upstream = await fetchUpstream(upstreamUrl, {
-      method: service.endpoint_method,
-      ...(requestBody && service.endpoint_method === "POST"
-        ? { body: requestBody, headers: { "content-type": "application/json" } }
-        : {}),
-    });
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    await recordFailure(service.id, quoted, service.asset, payer, reason);
-    // No settle call was made, so the payer keeps their money.
-    return problem(504, "upstream_unreachable", `Upstream did not respond: ${reason}`);
-  }
+    upstreamStatus = 200;
+    upstreamContentType = "application/json";
 
-  if (upstream.status < 200 || upstream.status >= 300) {
-    await recordFailure(
-      service.id,
-      quoted,
-      service.asset,
-      payer,
-      `upstream returned ${upstream.status}`,
-      upstream.status,
+    if (service.price_unit === "per_row") {
+      // A GraphQL result is a map of named lists, which the generic per_row
+      // rules would count as a single row. Trim by real row count instead.
+      const trimmed = trimGraphResult(data, units);
+      metered = {
+        body: JSON.stringify(trimmed.data),
+        units: trimmed.rows,
+        truncated: trimmed.truncated,
+      };
+    } else {
+      metered = meterResponse(
+        service.price_unit,
+        units,
+        JSON.stringify(data),
+        upstreamContentType,
+      );
+    }
+
+    graphPrice = await readGraphPrice(subgraphId);
+  } else {
+    let upstreamUrl: URL;
+    try {
+      upstreamUrl = await assertPublicUrl(service.endpoint_url);
+    } catch (err) {
+      if (err instanceof UnsafeUrlError) {
+        await recordFailure(service.id, quoted, service.asset, payer, err.message);
+        return problem(502, "endpoint_rejected", `Upstream endpoint rejected: ${err.message}`);
+      }
+      throw err;
+    }
+
+    let upstream;
+    try {
+      upstream = await fetchUpstream(upstreamUrl, {
+        method: service.endpoint_method,
+        ...(requestBody && service.endpoint_method === "POST"
+          ? { body: requestBody, headers: { "content-type": "application/json" } }
+          : {}),
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      await recordFailure(service.id, quoted, service.asset, payer, reason);
+      // No settle call was made, so the payer keeps their money.
+      return problem(504, "upstream_unreachable", `Upstream did not respond: ${reason}`);
+    }
+
+    if (upstream.status < 200 || upstream.status >= 300) {
+      await recordFailure(
+        service.id,
+        quoted,
+        service.asset,
+        payer,
+        `upstream returned ${upstream.status}`,
+        upstream.status,
+      );
+      return problem(
+        502,
+        "upstream_error",
+        `Upstream returned ${upstream.status}. No payment was settled.`,
+      );
+    }
+
+    upstreamStatus = upstream.status;
+    upstreamContentType = upstream.contentType;
+    metered = meterResponse(
+      service.price_unit,
+      units,
+      upstream.body,
+      upstream.contentType,
     );
-    return problem(
-      502,
-      "upstream_error",
-      `Upstream returned ${upstream.status}. No payment was settled.`,
-    );
   }
-
-  const metered = meterResponse(
-    service.price_unit,
-    units,
-    upstream.body,
-    upstream.contentType,
-  );
 
   /* ----------------------------------------------------------- 4. settle */
 
@@ -261,7 +331,7 @@ async function handle(
 
   const latency = Date.now() - started;
   const requestHash = hashRequest(request.method, request.nextUrl.toString(), requestBody);
-  const responseHash = hashResponse(upstream.status, metered.body);
+  const responseHash = hashResponse(upstreamStatus, metered.body);
   const paidAmount = settlement.amount ?? quoted.toString();
 
   const callId = await transaction(async (client) => {
@@ -269,8 +339,11 @@ async function handle(
       `INSERT INTO calls
          (service_id, payer_account, quoted_amount, paid_amount, units, asset,
           payment_tx, request_hash, response_hash, status, http_status,
-          latency_ms, delivered_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'delivered',$10,$11, now())
+          latency_ms, delivered_at,
+          upstream_kind, upstream_ref, upstream_cost_atomic, upstream_cost_asset,
+          upstream_network)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'delivered',$10,$11, now(),
+               $12,$13,$14,$15,$16)
        RETURNING id`,
       [
         service.id,
@@ -282,8 +355,15 @@ async function handle(
         settlement.transaction,
         requestHash,
         responseHash,
-        upstream.status,
+        upstreamStatus,
         latency,
+        service.upstream_kind,
+        service.upstream_ref,
+        // The supplier's own list price, recorded beside what the buyer paid,
+        // so a receipt shows both legs of the purchase rather than half of it.
+        graphPrice?.amountAtomic ?? null,
+        graphPrice?.asset ?? null,
+        graphPrice?.network ?? null,
       ],
     );
 
@@ -320,7 +400,7 @@ async function handle(
   return new NextResponse(metered.body, {
     status: 200,
     headers: {
-      "content-type": upstream.contentType,
+      "content-type": upstreamContentType,
       "cache-control": "no-store",
       "x-payment-response": encodeSettlementHeader(settlement),
       "x-tollgate-call-id": callId,

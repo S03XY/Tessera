@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  __clearGraphPriceCache,
   assertSubgraphId,
   countGraphRows,
   executeSubgraphQuery,
@@ -12,6 +13,7 @@ import {
   readGraphPrice,
   searchSubgraphs,
   standardDeployment,
+  trimGraphResult,
 } from "@/lib/graph";
 
 /**
@@ -36,6 +38,7 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  __clearGraphPriceCache();
 });
 
 /* ------------------------------------------------------------ subgraph ids */
@@ -60,7 +63,7 @@ describe("subgraph id validation", () => {
   });
 
   it("refuses to execute against a malformed id before making a request", async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn<(u: string, i: RequestInit) => Promise<Response>>();
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(executeSubgraphQuery("../evil", "{ x }", undefined, KEY)).rejects.toThrow(
@@ -75,7 +78,7 @@ describe("subgraph id validation", () => {
 
 describe("executeSubgraphQuery", () => {
   it("returns data on success and sends the key as a bearer token", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ data: { markets: [{ id: "1" }] } }));
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ data: { markets: [{ id: "1" }] } }));
     vi.stubGlobal("fetch", fetchMock);
 
     const data = await executeSubgraphQuery<{ markets: unknown[] }>(
@@ -93,7 +96,7 @@ describe("executeSubgraphQuery", () => {
   });
 
   it("passes variables through when given", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ data: { ok: true } }));
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ data: { ok: true } }));
     vi.stubGlobal("fetch", fetchMock);
 
     await executeSubgraphQuery(VALID_ID, "query($n: Int!){ x(n:$n) }", { n: 5 }, KEY);
@@ -103,7 +106,7 @@ describe("executeSubgraphQuery", () => {
   });
 
   it("throws GraphNotConfiguredError when no key is set", async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn<(u: string, i: RequestInit) => Promise<Response>>();
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(executeSubgraphQuery(VALID_ID, "{ x }", undefined, "")).rejects.toThrow(
@@ -119,7 +122,7 @@ describe("executeSubgraphQuery", () => {
   it("treats a 200 carrying GraphQL errors as a failure", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
+      vi.fn(async (_u: string, _i: RequestInit) =>
         jsonResponse({ errors: [{ message: "auth error: malformed API key" }] }),
       ),
     );
@@ -130,7 +133,7 @@ describe("executeSubgraphQuery", () => {
   });
 
   it("treats a 200 with neither data nor errors as a failure", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({})));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({})));
 
     await expect(executeSubgraphQuery(VALID_ID, "{ x }", undefined, KEY)).rejects.toThrow(
       /no data/,
@@ -140,22 +143,22 @@ describe("executeSubgraphQuery", () => {
   it("surfaces a non-JSON body rather than crashing on the parse", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("<html>502 Bad Gateway</html>", { status: 502 })),
+      vi.fn(async (_u: string, _i: RequestInit) => new Response("<html>502 Bad Gateway</html>", { status: 502 })),
     );
 
-    const error = await executeSubgraphQuery(VALID_ID, "{ x }", undefined, KEY).catch(
+    const error = (await executeSubgraphQuery(VALID_ID, "{ x }", undefined, KEY).catch(
       (e) => e,
-    );
+    )) as GraphQueryError;
     expect(error).toBeInstanceOf(GraphQueryError);
     expect(error.status).toBe(502);
   });
 
   it("reports an HTTP error status", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ errors: [] }, 429)));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ errors: [] }, 429)));
 
-    const error = await executeSubgraphQuery(VALID_ID, "{ x }", undefined, KEY).catch(
+    const error = (await executeSubgraphQuery(VALID_ID, "{ x }", undefined, KEY).catch(
       (e) => e,
-    );
+    )) as GraphQueryError;
     expect(error).toBeInstanceOf(GraphQueryError);
     expect(error.status).toBe(429);
   });
@@ -163,14 +166,14 @@ describe("executeSubgraphQuery", () => {
   it("turns a network failure into a 503 rather than an unhandled rejection", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn(async (_u: string, _i: RequestInit) => {
         throw new Error("ECONNREFUSED");
       }),
     );
 
-    const error = await executeSubgraphQuery(VALID_ID, "{ x }", undefined, KEY).catch(
+    const error = (await executeSubgraphQuery(VALID_ID, "{ x }", undefined, KEY).catch(
       (e) => e,
-    );
+    )) as GraphQueryError;
     expect(error).toBeInstanceOf(GraphQueryError);
     expect(error.status).toBe(503);
   });
@@ -194,7 +197,7 @@ describe("searchSubgraphs", () => {
   };
 
   it("maps catalogue rows into candidates", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: { subgraphs: [row] } })));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ data: { subgraphs: [row] } })));
 
     const found = await searchSubgraphs("uniswap", 5, KEY);
 
@@ -209,7 +212,7 @@ describe("searchSubgraphs", () => {
   });
 
   it("queries the Graph Network subgraph, not the target subgraph", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ data: { subgraphs: [] } }));
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ data: { subgraphs: [] } }));
     vi.stubGlobal("fetch", fetchMock);
 
     await searchSubgraphs("lending", 5, KEY);
@@ -218,7 +221,7 @@ describe("searchSubgraphs", () => {
   });
 
   it("returns nothing for blank input without calling the network", async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn<(u: string, i: RequestInit) => Promise<Response>>();
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await searchSubgraphs("   ", 5, KEY)).toEqual([]);
@@ -226,7 +229,7 @@ describe("searchSubgraphs", () => {
   });
 
   it("clamps the limit into the range the gateway will serve", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ data: { subgraphs: [] } }));
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ data: { subgraphs: [] } }));
     vi.stubGlobal("fetch", fetchMock);
 
     await searchSubgraphs("x", 9999, KEY);
@@ -241,7 +244,7 @@ describe("searchSubgraphs", () => {
   it("survives rows with missing nested fields", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
+      vi.fn(async (_u: string, _i: RequestInit) =>
         jsonResponse({
           data: {
             subgraphs: [
@@ -278,7 +281,7 @@ describe("getSubgraphSchema", () => {
   };
 
   it("extracts entities and their fields", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(introspection)));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => jsonResponse(introspection)));
 
     const schema = await getSubgraphSchema(VALID_ID, KEY);
 
@@ -287,7 +290,7 @@ describe("getSubgraphSchema", () => {
   });
 
   it("excludes GraphQL machinery from the data model", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(introspection)));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => jsonResponse(introspection)));
 
     const schema = await getSubgraphSchema(VALID_ID, KEY);
 
@@ -299,7 +302,7 @@ describe("getSubgraphSchema", () => {
   });
 
   it("returns an empty model rather than throwing when a subgraph has no types", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: { __schema: {} } })));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ data: { __schema: {} } })));
 
     const schema = await getSubgraphSchema(VALID_ID, KEY);
     expect(schema.entities).toEqual([]);
@@ -333,7 +336,7 @@ describe("readGraphPrice", () => {
   }
 
   it("decodes the challenge from the header, not the body", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => challengeResponse(challenge)));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => challengeResponse(challenge)));
 
     const price = await readGraphPrice(VALID_ID);
 
@@ -348,7 +351,7 @@ describe("readGraphPrice", () => {
   });
 
   it("sends no authorization header — price discovery is free", async () => {
-    const fetchMock = vi.fn(async () => challengeResponse(challenge));
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => challengeResponse(challenge));
     vi.stubGlobal("fetch", fetchMock);
 
     await readGraphPrice(VALID_ID);
@@ -365,7 +368,7 @@ describe("readGraphPrice", () => {
    * throwing here would fail a call the buyer has already paid for.
    */
   it("returns null for a malformed subgraph id without calling the network", async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn<(u: string, i: RequestInit) => Promise<Response>>();
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await readGraphPrice("nope")).toBeNull();
@@ -373,12 +376,12 @@ describe("readGraphPrice", () => {
   });
 
   it("returns null when the gateway does not answer 402", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: {} }, 200)));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => jsonResponse({ data: {} }, 200)));
     expect(await readGraphPrice(VALID_ID)).toBeNull();
   });
 
   it("returns null when the header is missing", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 402 })));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => new Response(null, { status: 402 })));
     expect(await readGraphPrice(VALID_ID)).toBeNull();
   });
 
@@ -399,24 +402,60 @@ describe("readGraphPrice", () => {
   it("returns null when the challenge omits a required field", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => challengeResponse({ accepts: [{ amount: "10000" }] })),
+      vi.fn(async (_u: string, _i: RequestInit) => challengeResponse({ accepts: [{ amount: "10000" }] })),
     );
     expect(await readGraphPrice(VALID_ID)).toBeNull();
   });
 
   it("returns null when the challenge offers nothing", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => challengeResponse({ accepts: [] })));
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, _i: RequestInit) => challengeResponse({ accepts: [] })));
     expect(await readGraphPrice(VALID_ID)).toBeNull();
   });
 
   it("returns null when the network is unreachable", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn(async (_u: string, _i: RequestInit) => {
         throw new Error("ENOTFOUND");
       }),
     );
     expect(await readGraphPrice(VALID_ID)).toBeNull();
+  });
+
+  it("caches a real answer so the paid path pays for one round trip", async () => {
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => challengeResponse(challenge));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = await readGraphPrice(VALID_ID);
+    const second = await readGraphPrice(VALID_ID);
+
+    expect(second).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * A transient outage must not pin a null for the whole TTL — the next call
+   * has to be free to succeed.
+   */
+  it("does not cache a failure", async () => {
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => {
+      throw new Error("ENOTFOUND");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await readGraphPrice(VALID_ID)).toBeNull();
+    expect(await readGraphPrice(VALID_ID)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keys the cache per subgraph", async () => {
+    const fetchMock = vi.fn(async (_u: string, _i: RequestInit) => challengeResponse(challenge));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await readGraphPrice(VALID_ID);
+    await readGraphPrice(GRAPH_NETWORK_SUBGRAPH_ID);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -481,6 +520,65 @@ describe("countGraphRows", () => {
     ["a number", 7],
   ])("counts %s as no rows", (_label, value) => {
     expect(countGraphRows(value)).toBe(0);
+  });
+});
+
+describe("trimGraphResult", () => {
+  it("trims a named list to the budget and reports truncation", () => {
+    const result = trimGraphResult({ markets: [1, 2, 3, 4, 5] }, 3);
+    expect(result.data).toEqual({ markets: [1, 2, 3] });
+    expect(result.rows).toBe(3);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("leaves a list already within budget untouched", () => {
+    const result = trimGraphResult({ markets: [1, 2] }, 10);
+    expect(result.data).toEqual({ markets: [1, 2] });
+    expect(result.rows).toBe(2);
+    expect(result.truncated).toBe(false);
+  });
+
+  it("spends one budget across several lists rather than per list", () => {
+    // The buyer paid for 4 rows total. Two lists of 3 must not yield 6.
+    const result = trimGraphResult({ a: [1, 2, 3], b: [4, 5, 6] }, 4);
+    expect(result.data).toEqual({ a: [1, 2, 3], b: [4] });
+    expect(result.rows).toBe(4);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("keeps scalar fields alongside trimmed lists", () => {
+    const result = trimGraphResult({ _meta: { block: 9 }, markets: [1, 2, 3] }, 2);
+    expect(result.data).toEqual({ _meta: { block: 9 }, markets: [1, 2] });
+  });
+
+  it("empties every list at a zero budget", () => {
+    const result = trimGraphResult({ markets: [1, 2] }, 0);
+    expect(result.data).toEqual({ markets: [] });
+    expect(result.rows).toBe(0);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("treats a negative budget as zero rather than slicing from the end", () => {
+    // Array.slice(0, -1) would silently return all but the last element.
+    const result = trimGraphResult({ markets: [1, 2, 3] }, -5);
+    expect(result.data).toEqual({ markets: [] });
+    expect(result.rows).toBe(0);
+  });
+
+  it("counts a scalar-only response as one row and does not trim it", () => {
+    const data = { _meta: { block: { number: 123 } } };
+    const result = trimGraphResult(data, 0);
+    expect(result.data).toEqual(data);
+    expect(result.rows).toBe(1);
+    expect(result.truncated).toBe(false);
+  });
+
+  it.each([
+    ["null", null],
+    ["a string", "nope"],
+    ["a bare array", [1, 2, 3]],
+  ])("passes %s through unchanged", (_label, value) => {
+    expect(trimGraphResult(value, 2).data).toBe(value);
   });
 });
 

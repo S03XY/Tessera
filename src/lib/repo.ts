@@ -4,6 +4,8 @@ import type { PriceUnit } from "@/lib/money";
 
 /* -------------------------------------------------------------------- Types */
 
+export type UpstreamKind = "http" | "graph_subgraph";
+
 export interface SellerRow {
   id: string;
   account_id: string;
@@ -31,6 +33,18 @@ export interface ServiceRow {
   keywords: string[];
   endpoint_url: string;
   endpoint_method: "GET" | "POST";
+
+  /**
+   * Where the data actually comes from. 'http' fetches endpoint_url;
+   * 'graph_subgraph' executes upstream_query against upstream_ref on The
+   * Graph's gateway. A CHECK constraint keeps the two shapes from mixing.
+   */
+  upstream_kind: UpstreamKind;
+  upstream_ref: string | null;
+  upstream_query: string | null;
+  upstream_schema: string | null;
+  upstream_chain: string | null;
+
   price_amount: string;
   price_unit: PriceUnit;
   asset: string;

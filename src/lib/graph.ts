@@ -63,9 +63,10 @@ async function postJson(
   url: string,
   body: unknown,
   headers: Record<string, string> = {},
+  timeoutMs: number = GRAPH_TIMEOUT_MS,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, {
       method: "POST",
@@ -313,6 +314,19 @@ export interface GraphPrice {
 const USDC_DECIMALS = 6;
 
 /**
+ * A subgraph's list price does not move between calls, and this read happens
+ * while a buyer is waiting, so it is cached and given a short leash.
+ */
+const priceCache = new Map<string, { value: GraphPrice | null; fetchedAt: number }>();
+const PRICE_TTL_MS = 10 * 60_000;
+const PRICE_TIMEOUT_MS = 4_000;
+
+/** Test seam: the cache is module state and would otherwise leak between cases. */
+export function __clearGraphPriceCache(): void {
+  priceCache.clear();
+}
+
+/**
  * Asks The Graph's own x402 gateway what a query costs, without paying it.
  *
  * A 402 challenge is public: no key, no wallet, no settlement. That makes it a
@@ -326,11 +340,19 @@ const USDC_DECIMALS = 6;
 export async function readGraphPrice(subgraphId: string): Promise<GraphPrice | null> {
   if (!isSubgraphId(subgraphId)) return null;
 
+  const cached = priceCache.get(subgraphId);
+  if (cached && Date.now() - cached.fetchedAt < PRICE_TTL_MS) return cached.value;
+
   let response: Response;
   try {
-    response = await postJson(`${GRAPH_GATEWAY}/x402/subgraphs/id/${subgraphId}`, {
-      query: "{ _meta { block { number } } }",
-    });
+    response = await postJson(
+      `${GRAPH_GATEWAY}/x402/subgraphs/id/${subgraphId}`,
+      { query: "{ _meta { block { number } } }" },
+      {},
+      // This sits on the paid request path purely to enrich a receipt, so it
+      // gets a fraction of the normal budget: late is the same as absent.
+      PRICE_TIMEOUT_MS,
+    );
   } catch {
     return null;
   }
@@ -357,7 +379,7 @@ export async function readGraphPrice(subgraphId: string): Promise<GraphPrice | n
       return null;
     }
 
-    return {
+    const price: GraphPrice = {
       amountAtomic: accepted.amount,
       asset: accepted.asset,
       assetName: accepted.extra?.name ?? null,
@@ -365,6 +387,11 @@ export async function readGraphPrice(subgraphId: string): Promise<GraphPrice | n
       payTo: accepted.payTo,
       decimals: USDC_DECIMALS,
     };
+
+    // Only a real answer is cached. A transient failure must not pin a null
+    // for ten minutes.
+    priceCache.set(subgraphId, { value: price, fetchedAt: Date.now() });
+    return price;
   } catch {
     return null;
   }
@@ -466,4 +493,56 @@ export function countGraphRows(data: unknown): number {
   }
 
   return sawList ? rows : 1;
+}
+
+export interface TrimmedGraphResult {
+  data: unknown;
+  rows: number;
+  truncated: boolean;
+}
+
+/**
+ * Holds a GraphQL result to the buyer's row budget.
+ *
+ * The generic per_row metering cannot do this: it looks for a bare JSON array
+ * and a GraphQL response is a map of *named* lists, so `{ markets: [...] }`
+ * would meter as a single row and a buyer paying for 50 would be handed
+ * however many the subgraph felt like returning.
+ *
+ * Lists are trimmed in key order, each one taking from what the previous left,
+ * so the budget is a total across the response rather than per-list.
+ */
+export function trimGraphResult(data: unknown, maxRows: number): TrimmedGraphResult {
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    return { data, rows: countGraphRows(data), truncated: false };
+  }
+
+  const budget = Math.max(maxRows, 0);
+  const entries = Object.entries(data as Record<string, unknown>);
+
+  let remaining = budget;
+  let rows = 0;
+  let truncated = false;
+  let sawList = false;
+  const trimmed: Record<string, unknown> = {};
+
+  for (const [key, value] of entries) {
+    if (!Array.isArray(value)) {
+      trimmed[key] = value;
+      continue;
+    }
+
+    sawList = true;
+    if (value.length > remaining) truncated = true;
+
+    const kept = value.slice(0, remaining);
+    trimmed[key] = kept;
+    remaining -= kept.length;
+    rows += kept.length;
+  }
+
+  // A response with no lists is one row and cannot be trimmed.
+  if (!sawList) return { data, rows: 1, truncated: false };
+
+  return { data: trimmed, rows, truncated };
 }
