@@ -58,3 +58,15 @@ export const MIN_DEPOSIT_TINYBARS = 1_000_000_000n;
 
 /** Window during which a buyer may dispute a delivered call. */
 export const DISPUTE_WINDOW_HOURS = 24;
+
+/**
+ * The ERC-1400 security token backing seller dispute deposits, issued through
+ * Hedera's Asset Tokenization Studio. Issuance lives in ../tollgate-ats; this
+ * app only records the id and reads balances over the JSON-RPC relay.
+ */
+export const DEPOSIT_BOND_TOKEN_ID = process.env.DEPOSIT_BOND_TOKEN_ID ?? "";
+
+/** What the discovery and delivery paths can actually reach on The Graph. */
+export function graphMode(): "live" | "unconfigured" {
+  return process.env.GRAPH_API_KEY ? "live" : "unconfigured";
+}
