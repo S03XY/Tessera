@@ -12,3 +12,6 @@ contracts/out
 contracts/cache
 contracts/broadcast
 .testnet-accounts.json
+
+# Sponsor contract forks live in their own repos (nested git, ~665MB of build artefacts)
+contracts/
