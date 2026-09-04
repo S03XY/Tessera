@@ -100,10 +100,11 @@ World credentials come from [developer.world.org](https://developer.world.org).
 
 ```bash
 npm run dev     # the HTTP suites need a running gateway
-npm test        # 177 tests
+npm test        # 313 tests
 ```
 
-The suite covers unit logic, a live call against the Blocky402 facilitator,
+The suite covers unit logic, The Graph client and the schema appraiser, a live
+call against the Blocky402 facilitator,
 end-to-end HTTP against the gateway, the dispute ledger and the seller gate. Tests that create
 rows clean up after themselves, so the seeded fixtures survive repeated runs.
 
@@ -236,6 +237,49 @@ more than it agreed to.
 
 Line numbers refer to this repository. Before submission, pin these to a
 commit SHA so they become permanent links.
+
+### The Graph — Composable Products, and AI Tooling (Continuity)
+
+| Requirement | Implementation |
+| --- | --- |
+| Two or more Graph products composed | Network catalogue subgraph, GraphQL introspection, Subgraph Gateway, and the x402 gateway read as a price oracle — [`src/lib/graph.ts`](src/lib/graph.ts) |
+| Live data from a Graph provider | [`executeSubgraphQuery`](src/lib/graph.ts) through `gateway.thegraph.com` |
+| Standardized schemas | Messari lending v3.1.0, one query document across Ethereum and Base — [`MESSARI_LENDING`](src/lib/graph.ts) |
+| The Graph load-bearing, not decorative | Discovery, schema and delivery all route through it; remove it and the Graph-backed listings cannot be appraised or served |
+| Meaningful AI reasoning | [`src/lib/appraise.ts`](src/lib/appraise.ts) — reads a subgraph schema, matches the question's concepts against it, and **refuses to pay** when nothing fits |
+| Open source | MIT, see [`LICENSE`](LICENSE) |
+
+Price discovery is free: reading The Graph's own 402 challenge costs nothing
+and needs no key, so the marketplace can show what data would have cost bought
+direct without buying it.
+
+### Hedera — Tokenization of Anything
+
+| Requirement | Implementation |
+| --- | --- |
+| Asset Tokenization Studio used | [`../tollgate-ats`](../tollgate-ats) — issuance toolkit, kept out of this repo because the ATS SDK is 1.4GB |
+| Tokenized asset on testnet | **Tollgate Seller Deposit Bond** (`TGDEP`), ISIN `XFTGDEP00013`, [`0.0.10367762`](https://hashscan.io/testnet/contract/0.0.10367762) |
+| Managed, not just issued | Full dispute lifecycle on chain: issue -> hold -> read -> execute. Final balances seller 175, buyer 25, **marketplace 0** |
+| Read back by this app | [`src/lib/tokenized-deposit.ts`](src/lib/tokenized-deposit.ts) — `balanceOf` over the JSON-RPC relay, no SDK |
+
+The point is not that a token was minted. ERC-1400 *holds* let the marketplace
+lock a seller's units against a named beneficiary without ever owning them, so
+it can pay out an upheld dispute but can never take the deposit for itself —
+enforced by the token rather than by our code behaving.
+
+### Hedera — Open Source, Improve the Hedera Harness
+
+| Requirement | Implementation |
+| --- | --- |
+| Meaningful contribution | An HTTP/API validator tier for [hedera-dev/hedera-harness](https://github.com/hedera-dev/hedera-harness) |
+| The problem it fixes | The Playwright gate fails any status >= 400 **and** any body without rendered text, so a correct x402 endpoint fails twice and the repair loop "fixes" a working app. `x402` appeared nowhere in the harness |
+| Tests | 23 new, 218 of theirs pass, typecheck clean |
+
+### Hedera — Continuity
+
+Tollgate already existed on Hedera before the event, with a real settled paid
+call on testnet. See [`PRIOR_WORK.md`](PRIOR_WORK.md) for the boundary and the
+work done during ETHOnline 2026.
 
 ### Hedera — AI & Agentic Payments
 

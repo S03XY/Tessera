@@ -58,7 +58,82 @@ Everything in `git log pre-ethonline2026..HEAD`. This section is kept current
 as the event runs.
 
 <!-- BEGIN EVENT WORK -->
-_In progress — updated as work lands._
+
+### 1. The Graph, as inventory rather than an integration
+
+The marketplace worked before the event but had nothing valuable on it: eight
+free public APIs behind a paywall. It now resells subgraph data, bought in
+dollars and sold in HBAR, so a buying agent never needs a Base wallet.
+
+Four of The Graph's own surfaces are used, each answering a question the
+marketplace genuinely has to ask:
+
+| Surface | Question it answers |
+| --- | --- |
+| The Graph Network subgraph | what data exists, and does anyone use it |
+| GraphQL introspection | can this subgraph answer *my* question |
+| Subgraph Gateway | execute it and return the data |
+| The Graph's x402 gateway | what would this cost bought direct |
+
+The last is free — reading a 402 challenge costs nothing and needs no key —
+which is what makes it usable as a price oracle rather than a purchase.
+
+Two of the three seeded Graph listings share **one schema across two chains**
+(Messari standardized lending, Ethereum and Base). The same query document
+answers both, which is what makes "lending TVL" a capability rather than a
+per-chain integration.
+
+- `src/lib/graph.ts`, `db/migrations/0003_graph_upstreams.sql`
+- Gateway delivery branch in `src/app/x402/[slug]/route.ts`
+- Pricing derived from real upstream cost: `floorPriceTinybars()`
+
+### 2. The agent refuses to pay when it cannot answer
+
+The buyer agent used to take the cheapest listing that matched a text search.
+It now reads a candidate's schema first, matches the question's concepts
+against what the subgraph actually publishes, and **declines to pay when
+nothing fits** — naming the concepts it could not find.
+
+An unreadable schema is treated differently from one that was read and did not
+match: the first is an unknown, and the agent declines rather than guessing.
+
+- `src/lib/appraise.ts`, wired into `src/lib/agent.ts`
+
+### 3. Seller deposits as real security tokens
+
+The dispute deposit moves from raw HBAR in the marketplace's wallet to an
+**ERC-1400 security token** issued through Hedera's Asset Tokenization Studio,
+with disputes settled by ERC-1400 *holds*.
+
+Live on Hedera testnet: **Tollgate Seller Deposit Bond (TGDEP)**, ISIN
+`XFTGDEP00013`, contract
+[`0.0.10367762`](https://hashscan.io/testnet/contract/0.0.10367762).
+
+A full dispute ran end to end — issue, hold, read, execute — finishing at
+seller 175, buyer 25, **marketplace 0**. The marketplace mediated a payout
+without ever holding the funds, and the token prevents it from taking them.
+
+- Issuance toolkit: [`../tollgate-ats`](../tollgate-ats) (separate repo — the
+  ATS SDK is 1.4GB)
+- App-side reading with no SDK: `src/lib/tokenized-deposit.ts`,
+  `db/migrations/0004_tokenized_deposits.sql`
+
+### 4. An x402 validator for the Hedera Harness
+
+Contributed upstream to
+[hedera-dev/hedera-harness](https://github.com/hedera-dev/hedera-harness).
+Its Playwright gate fails any route returning ≥ 400 **and** any body without
+rendered text — so a correct x402 endpoint answering `402 Payment Required`
+with JSON fails twice, and the repair loop burns attempts "fixing" a working
+app. `x402` appeared nowhere in the harness.
+
+Routes may now declare HTTP expectations and be checked without a browser.
+218 of their tests pass, including 23 new ones.
+
+### Totals
+
+Six commits, ~2,800 lines, 313 tests (up from 177), lint and typecheck clean.
+
 <!-- END EVENT WORK -->
 
 ---
