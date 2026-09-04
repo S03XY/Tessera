@@ -33,6 +33,65 @@ const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const HBAR = 100_000_000n; // tinybars per HBAR
 const tinybars = (hbar) => String(BigInt(Math.round(hbar * 1e8)));
 
+/**
+ * Messari's standardized lending schema. One document, every deployment —
+ * that is what "standardized" buys, and why these two listings differ only
+ * by subgraph id.
+ */
+const MESSARI_LENDING_QUERY = `
+  {
+    markets(first: 100, orderBy: totalValueLockedUSD, orderDirection: desc) {
+      id
+      name
+      inputToken { symbol }
+      totalValueLockedUSD
+      totalBorrowBalanceUSD
+      rates(first: 4) { side type rate }
+    }
+  }`;
+
+/**
+ * What a Graph-backed row is sold for.
+ *
+ * The Graph charges per QUERY — $0.01, read live from their own 402 challenge
+ * — not per row, so pricing each row at the query cost would overcharge a
+ * hundredfold. floorPriceTinybars() turns that $0.01 into tinybars with a 30%
+ * margin, and it is then spread across the 100-row page the query actually
+ * fetches.
+ *
+ * A buyer taking fewer rows therefore pays pro rata while our cost stays
+ * fixed, which means the margin only materialises at full uptake. That is a
+ * deliberate wholesale decision rather than an oversight: the alternative is
+ * charging a full query fee for a single row, which no agent would ever pay
+ * twice.
+ */
+const GRAPH_ROWS_PER_QUERY = 100n;
+const GRAPH_QUERY_COST_CENTS = 1n; // $0.01, read live from The Graph's 402
+const GRAPH_MARKUP_BPS = 3_000n; // 30%
+const HBAR_CENTS = 5n;
+
+// Mirrors floorPriceTinybars() in src/lib/graph.ts, which is the source of
+// truth and is unit-tested. Kept as plain arithmetic because this seed is a
+// .mjs script and cannot import the TypeScript path alias.
+//   1 cent / 5 cents-per-HBAR = 0.2 HBAR = 20_000_000 tinybars
+//   +30% = 26_000_000, spread over 100 rows = 260_000 tinybars/row
+const GRAPH_PRICE_PER_ROW = String(
+  (GRAPH_QUERY_COST_CENTS * 100_000_000n * (10_000n + GRAPH_MARKUP_BPS)) /
+    (HBAR_CENTS * 10_000n * GRAPH_ROWS_PER_QUERY),
+);
+
+const UNISWAP_POOLS_QUERY = `
+  {
+    pools(first: 100, orderBy: totalValueLockedUSD, orderDirection: desc) {
+      id
+      feeTier
+      totalValueLockedUSD
+      volumeUSD
+      token0 { symbol }
+      token1 { symbol }
+    }
+  }`;
+
 const SELLERS = [
   {
     key: "meridian",
@@ -164,6 +223,75 @@ const SELLERS = [
       },
     ],
   },
+  {
+    key: "indexwell",
+    account_id: "0.0.7399100",
+    display_name: "Indexwell Research",
+    contact_url: "https://example.com/indexwell",
+    verified: true,
+    deposit: tinybars(25),
+    /**
+     * Graph-backed listings. These are not URLs behind a paywall — they are
+     * subgraphs, executed against The Graph's gateway with the marketplace's
+     * own key, and resold in HBAR so the buying agent never needs a Base
+     * wallet or a dollar balance. Doing that conversion is the job.
+     *
+     * The first two share one schema across two chains on purpose: a
+     * standardized schema means the same query document answers both, which
+     * is what makes "lending TVL" a capability rather than a per-chain
+     * integration.
+     */
+    services: [
+      {
+        slug: "lending-markets-ethereum",
+        keywords: ["lending", "borrow", "supply", "tvl", "defi", "aave", "money market", "collateral", "ethereum"],
+        name: "Lending Markets — Ethereum",
+        description:
+          "Live lending market state on Ethereum: total value locked, borrow balances and interest rates per market. Messari standardized lending schema v3.1.0, so the same query shape works across every chain.",
+        category: "defi",
+        upstream_kind: "graph_subgraph",
+        upstream_ref: "JCNWRypm7FYwV8fx5HhzZPSFaMxgkPuw4TnR3Gpi81zk",
+        upstream_schema: "messari/lending@3.1.0",
+        upstream_chain: "mainnet",
+        upstream_query: MESSARI_LENDING_QUERY,
+        endpoint_url: "https://gateway.thegraph.com/api/subgraphs/id/JCNWRypm7FYwV8fx5HhzZPSFaMxgkPuw4TnR3Gpi81zk",
+        price: GRAPH_PRICE_PER_ROW,
+        unit: "per_row",
+      },
+      {
+        slug: "lending-markets-base",
+        keywords: ["lending", "borrow", "supply", "tvl", "defi", "aave", "money market", "collateral", "base"],
+        name: "Lending Markets — Base",
+        description:
+          "The same Messari standardized lending schema, indexed on Base. Identical query document, different chain — the point of a standardized schema.",
+        category: "defi",
+        upstream_kind: "graph_subgraph",
+        upstream_ref: "D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9",
+        upstream_schema: "messari/lending@3.1.0",
+        upstream_chain: "base",
+        upstream_query: MESSARI_LENDING_QUERY,
+        endpoint_url: "https://gateway.thegraph.com/api/subgraphs/id/D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9",
+        price: GRAPH_PRICE_PER_ROW,
+        unit: "per_row",
+      },
+      {
+        slug: "dex-pools-uniswap-v3",
+        keywords: ["dex", "swap", "liquidity", "pool", "uniswap", "amm", "trading volume"],
+        name: "Uniswap V3 Pools",
+        description:
+          "Top Uniswap V3 pools on Ethereum by total value locked, with token pairs, fee tier and volume.",
+        category: "defi",
+        upstream_kind: "graph_subgraph",
+        upstream_ref: "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+        upstream_schema: "uniswap/v3",
+        upstream_chain: "mainnet",
+        upstream_query: UNISWAP_POOLS_QUERY,
+        endpoint_url: "https://gateway.thegraph.com/api/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+        price: GRAPH_PRICE_PER_ROW,
+        unit: "per_row",
+      },
+    ],
+  },
 ];
 
 // Present but unverified and undeposited: proves the listing gate rejects it.
@@ -207,13 +335,21 @@ export async function seedDemo(client) {
         await client.query(
           `INSERT INTO services
              (seller_id, slug, name, description, category, endpoint_url,
-              price_amount, price_unit, keywords, asset, asset_decimals, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'0.0.0',8,'active')
+              price_amount, price_unit, keywords, asset, asset_decimals, status,
+              upstream_kind, upstream_ref, upstream_query, upstream_schema,
+              upstream_chain)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'0.0.0',8,'active',
+                   $10,$11,$12,$13,$14)
            ON CONFLICT (slug) DO UPDATE
-             SET price_amount = EXCLUDED.price_amount,
-                 endpoint_url = EXCLUDED.endpoint_url,
-                 keywords     = EXCLUDED.keywords,
-                 description  = EXCLUDED.description`,
+             SET price_amount    = EXCLUDED.price_amount,
+                 endpoint_url    = EXCLUDED.endpoint_url,
+                 keywords        = EXCLUDED.keywords,
+                 description     = EXCLUDED.description,
+                 upstream_kind   = EXCLUDED.upstream_kind,
+                 upstream_ref    = EXCLUDED.upstream_ref,
+                 upstream_query  = EXCLUDED.upstream_query,
+                 upstream_schema = EXCLUDED.upstream_schema,
+                 upstream_chain  = EXCLUDED.upstream_chain`,
           [
             sellerId,
             service.slug,
@@ -224,6 +360,11 @@ export async function seedDemo(client) {
             service.price,
             service.unit,
             service.keywords ?? [],
+            service.upstream_kind ?? "http",
+            service.upstream_ref ?? null,
+            service.upstream_query ?? null,
+            service.upstream_schema ?? null,
+            service.upstream_chain ?? null,
           ],
         );
         counts.services++;
@@ -247,8 +388,8 @@ export async function seedDemo(client) {
         "Demo Buyer Agent",
         "0.0.7326075",
         "0.0.7326078",
-        tinybars(0.05),
-        tinybars(2),
+        tinybars(1),
+        tinybars(10),
         sha256(DEMO_AGENT_TOKEN),
       ],
     );

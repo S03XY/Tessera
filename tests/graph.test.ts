@@ -4,6 +4,7 @@ import {
   assertSubgraphId,
   countGraphRows,
   executeSubgraphQuery,
+  floorPriceTinybars,
   getSubgraphSchema,
   GraphNotConfiguredError,
   GraphQueryError,
@@ -456,6 +457,63 @@ describe("readGraphPrice", () => {
     await readGraphPrice(GRAPH_NETWORK_SUBGRAPH_ID);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+/* --------------------------------------------------------------- pricing */
+
+describe("floorPriceTinybars", () => {
+  /**
+   * $0.01 of upstream cost, HBAR at 5c, 30% markup.
+   *   $0.01 = 1 cent = 0.2 ℏ at 5c        = 20,000,000 tinybars
+   *   +30%                                = 26,000,000 tinybars
+   */
+  it("converts a real upstream cost into a floor price", () => {
+    expect(floorPriceTinybars(10_000n, 5, 3_000)).toBe(26_000_000n);
+  });
+
+  it("charges cost exactly at a zero markup", () => {
+    expect(floorPriceTinybars(10_000n, 5, 0)).toBe(20_000_000n);
+  });
+
+  it("scales linearly with upstream cost", () => {
+    const one = floorPriceTinybars(10_000n, 5, 0);
+    const ten = floorPriceTinybars(100_000n, 5, 0);
+    expect(ten).toBe(one * 10n);
+  });
+
+  it("falls as HBAR gets more valuable", () => {
+    const cheapHbar = floorPriceTinybars(10_000n, 5, 0);
+    const dearHbar = floorPriceTinybars(10_000n, 20, 0);
+    expect(dearHbar).toBe(cheapHbar / 4n);
+  });
+
+  it("handles a fractional HBAR price without floating point drift", () => {
+    // 2.5 cents per HBAR: $0.01 buys 0.4 ℏ.
+    expect(floorPriceTinybars(10_000n, 2.5, 0)).toBe(40_000_000n);
+  });
+
+  it("costs nothing when the upstream is free", () => {
+    expect(floorPriceTinybars(0n, 5, 3_000)).toBe(0n);
+  });
+
+  it("accepts the amount as a string, as it arrives from a 402", () => {
+    expect(floorPriceTinybars("10000", 5, 3_000)).toBe(26_000_000n);
+  });
+
+  it("returns a bigint, never a float", () => {
+    expect(typeof floorPriceTinybars(12_345n, 7.3, 1_234)).toBe("bigint");
+  });
+
+  it.each([
+    ["negative cost", () => floorPriceTinybars(-1n, 5, 0)],
+    ["zero HBAR price", () => floorPriceTinybars(10_000n, 0, 0)],
+    ["negative HBAR price", () => floorPriceTinybars(10_000n, -5, 0)],
+    ["NaN HBAR price", () => floorPriceTinybars(10_000n, Number.NaN, 0)],
+    ["negative markup", () => floorPriceTinybars(10_000n, 5, -1)],
+    ["fractional markup", () => floorPriceTinybars(10_000n, 5, 1.5)],
+  ])("rejects %s", (_label, call) => {
+    expect(call).toThrow();
   });
 });
 

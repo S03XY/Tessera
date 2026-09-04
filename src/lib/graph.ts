@@ -397,6 +397,58 @@ export async function readGraphPrice(subgraphId: string): Promise<GraphPrice | n
   }
 }
 
+/* --------------------------------------------------------------- pricing */
+
+/**
+ * HBAR price in US cents, used only to convert an upstream dollar cost into a
+ * floor price. Configurable because it is a market rate, and stated rather
+ * than silently assumed — nothing here pretends to be an oracle.
+ */
+export const HBAR_CENTS = Number(process.env.HBAR_PRICE_CENTS ?? "5");
+
+/** Default margin over cost on resold data: 30%. */
+export const DEFAULT_MARKUP_BPS = 3_000;
+
+/**
+ * The least a Graph-backed listing may be sold for, in tinybars.
+ *
+ * Reselling below cost is the one pricing mistake a marketplace cannot absorb,
+ * because every call loses money and volume makes it worse. So the floor is
+ * derived from what the supplier actually charges — read from their own 402 —
+ * rather than picked, and seeding refuses to list anything under it.
+ *
+ * All integer arithmetic: `costAtomic` is USDC base units (6 decimals) and the
+ * result is tinybars (8 decimals), so a float here would be a rounding error
+ * with money attached.
+ */
+export function floorPriceTinybars(
+  costAtomic: bigint | string,
+  hbarCents: number = HBAR_CENTS,
+  markupBps: number = DEFAULT_MARKUP_BPS,
+): bigint {
+  const cost = typeof costAtomic === "bigint" ? costAtomic : BigInt(costAtomic);
+  if (cost < 0n) throw new Error("upstream cost cannot be negative");
+  if (!Number.isFinite(hbarCents) || hbarCents <= 0) {
+    throw new Error("HBAR price must be a positive number of cents");
+  }
+  if (!Number.isInteger(markupBps) || markupBps < 0) {
+    throw new Error("markup must be a non-negative whole number of basis points");
+  }
+
+  // cost is USDC base units: 1_000_000 = $1.00 = 100 cents.
+  // centsScaled = cost * 100 keeps two more digits of precision before dividing.
+  const centsScaled = cost * 100n;
+
+  // tinybars = (cents / hbarCents) * 1e8, with the markup applied.
+  // hbarCents may be fractional, so scale it to a whole number first.
+  const rateScale = 1_000_000n;
+  const hbarCentsScaled = BigInt(Math.round(hbarCents * Number(rateScale)));
+
+  const withMarkup = centsScaled * BigInt(10_000 + markupBps);
+
+  return (withMarkup * rateScale * 100_000_000n) / (hbarCentsScaled * 10_000n * 1_000_000n);
+}
+
 /* ------------------------------------------------- standardized schemas ---- */
 
 export interface StandardDeployment {
