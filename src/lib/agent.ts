@@ -2,6 +2,7 @@ import type { PaymentRequirements, PaymentPayload } from "@x402/core/types";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
 import { createClientHederaSigner } from "@x402/hedera";
 import { discoverServices, type ServiceListing } from "@/lib/repo";
+import { appraiseCandidates, type Appraisal } from "@/lib/appraise";
 import { queryOne, query } from "@/lib/db";
 import { parsePrivateKey } from "@/lib/hedera";
 import { formatAmount, normalizeUnits, quoteFor, type PriceUnit } from "@/lib/money";
@@ -48,6 +49,8 @@ export interface AgentRunResult {
     quote: string;
   } | null;
   considered: Array<{ slug: string; name: string; seller: string; price: string }>;
+  /** What each candidate publishes, and whether it could answer the question. */
+  appraisals: Appraisal[];
   paid: boolean;
   transaction: string | null;
   callId: string | null;
@@ -71,6 +74,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     steps,
     chosen: null,
     considered: [],
+    appraisals: [],
     paid: false,
     transaction: null,
     callId: null,
@@ -132,11 +136,61 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     ms: Date.now() - t0,
   });
 
+  /* ------------------------------------------------------------- appraise */
+
+  /**
+   * Cheapest is not the same as able to answer. Before committing money the
+   * agent reads what each candidate actually publishes — for a Graph-backed
+   * listing that is the subgraph's own schema — and drops the ones whose data
+   * has no shape for the question.
+   *
+   * The refusal is deliberate behaviour, not an error path: an agent that buys
+   * whatever it can afford is not reasoning about anything.
+   */
+  const tAppraise = Date.now();
+  const verdict = await appraiseCandidates(
+    input.capability,
+    candidates.map((service) => ({
+      slug: service.slug,
+      name: service.name,
+      upstreamKind: service.upstream_kind,
+      upstreamRef: service.upstream_ref,
+    })),
+  );
+
+  result.appraisals = verdict.appraisals;
+
+  if (verdict.refused || !verdict.chosen) {
+    step({
+      key: "appraise",
+      title: "Appraise candidates",
+      status: "failed",
+      detail: verdict.refusalReason ?? "No listing can answer this question.",
+      data: { appraisals: verdict.appraisals },
+      ms: Date.now() - tAppraise,
+    });
+    result.error = "no_listing_can_answer";
+    return result;
+  }
+
+  const rejected = verdict.appraisals.filter((entry) => !entry.canAnswer);
+  step({
+    key: "appraise",
+    title: "Appraise candidates",
+    status: "ok",
+    detail: rejected.length
+      ? `${verdict.chosen.name} can answer. Rejected ${rejected.length}: ${rejected[0].reason}`
+      : `${verdict.chosen.name} can answer. ${verdict.chosen.reason}`,
+    data: { appraisals: verdict.appraisals, chosen: verdict.chosen.slug },
+    ms: Date.now() - tAppraise,
+  });
+
   /* -------------------------------------------------------------- select */
 
-  // discoverServices already ranks by price then success rate, so the head of
-  // the list is the cheapest provider with the best delivery record.
-  const chosen = candidates[0];
+  // discoverServices ranks by price then success rate, so among the listings
+  // that survived appraisal the winner is still the cheapest capable one.
+  const chosen =
+    candidates.find((service) => service.slug === verdict.chosen?.slug) ?? candidates[0];
   const units = normalizeUnits(input.units, chosen.price_unit);
   const expected = quoteFor(chosen.price_amount, units);
 
