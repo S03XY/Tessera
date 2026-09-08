@@ -23,7 +23,7 @@ export class ChainNotConfiguredError extends Error {
 }
 
 declare global {
-  var __tollgateHedera: Client | undefined;
+  var __tesseraHedera: Client | undefined;
 }
 
 export type KeyKind = "der" | "ecdsa" | "ed25519";
@@ -97,7 +97,7 @@ export async function assertKeyMatchesAccount(
 
 export function hederaClient(): Client {
   if (!chainConfigured) throw new ChainNotConfiguredError();
-  if (globalThis.__tollgateHedera) return globalThis.__tollgateHedera;
+  if (globalThis.__tesseraHedera) return globalThis.__tesseraHedera;
 
   const client =
     HEDERA_NETWORK === "mainnet" ? Client.forMainnet() : Client.forTestnet();
@@ -108,12 +108,12 @@ export function hederaClient(): Client {
   // Serverless invocations are short; do not let a stuck node hang the request.
   client.setRequestTimeout(15_000);
 
-  globalThis.__tollgateHedera = client;
+  globalThis.__tesseraHedera = client;
   return client;
 }
 
 /** Creates the receipt topic once, for operators bootstrapping a deployment. */
-export async function createReceiptTopic(memo = "Tollgate call receipts"): Promise<string> {
+export async function createReceiptTopic(memo = "Tessera call receipts"): Promise<string> {
   const client = hederaClient();
   const response = await new TopicCreateTransaction()
     .setTopicMemo(memo)
@@ -168,7 +168,7 @@ export async function transferHbar(
   const response = await new TransferTransaction()
     .addHbarTransfer(operator.accountId, amount.negated())
     .addHbarTransfer(toAccountId, amount)
-    .setTransactionMemo("Tollgate dispute refund")
+    .setTransactionMemo("Tessera dispute refund")
     .execute(client);
 
   // execute() only pre-checks; consensus failures surface via the receipt.

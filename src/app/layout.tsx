@@ -19,8 +19,8 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Tollgate — pay-per-call API marketplace on Hedera",
-    template: "%s · Tollgate",
+    default: "Tessera — pay-per-call API marketplace on Hedera",
+    template: "%s · Tessera",
   },
   description:
     "Sellers list metered APIs. Agents discover them and pay per call over x402 on Hedera. No API keys, no subscriptions.",

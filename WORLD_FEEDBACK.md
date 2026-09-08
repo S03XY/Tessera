@@ -1,6 +1,6 @@
 # World ID Selfie Check — integration feedback
 
-Feedback from integrating Selfie Check into Tollgate, a pay-per-call API
+Feedback from integrating Selfie Check into Tessera, a pay-per-call API
 marketplace, during ETHOnline 2026.
 
 **What we used it for.** Sellers must prove they are a distinct human before

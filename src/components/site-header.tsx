@@ -22,10 +22,10 @@ export function SiteHeader() {
         <Link
           href="/"
           className="flex shrink-0 items-center gap-2 rounded-sm text-ink"
-          aria-label="Tollgate home"
+          aria-label="Tessera home"
         >
           <GateMark />
-          <span className="text-[14px] font-[560] tracking-[-0.015em]">Tollgate</span>
+          <span className="text-[14px] font-[560] tracking-[-0.015em]">Tessera</span>
         </Link>
 
         <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto scroll-thin">

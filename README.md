@@ -1,4 +1,4 @@
-# Tollgate
+# Tessera
 
 A pay-per-call API marketplace on Hedera, settled over x402.
 
@@ -262,6 +262,9 @@ direct without buying it.
 | Managed, not just issued | Full dispute lifecycle on chain: issue -> hold -> read -> execute. Final balances seller 175, buyer 25, **marketplace 0** |
 | Read back by this app | [`src/lib/tokenized-deposit.ts`](src/lib/tokenized-deposit.ts) — `balanceOf` over the JSON-RPC relay, no SDK |
 
+The bond was issued before the project was renamed, so it carries the earlier
+name, Tollgate. The contract id is the identity that matters.
+
 The point is not that a token was minted. ERC-1400 *holds* let the marketplace
 lock a seller's units against a named beneficiary without ever owning them, so
 it can pay out an upheld dispute but can never take the deposit for itself —
@@ -277,7 +280,7 @@ enforced by the token rather than by our code behaving.
 
 ### Hedera — Continuity
 
-Tollgate already existed on Hedera before the event, with a real settled paid
+Tessera already existed on Hedera before the event, with a real settled paid
 call on testnet. See [`PRIOR_WORK.md`](PRIOR_WORK.md) for the boundary and the
 work done during ETHOnline 2026.
 

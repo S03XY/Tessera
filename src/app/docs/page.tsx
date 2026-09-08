@@ -10,7 +10,7 @@ export default function DocsPage() {
     <Page className="max-w-[860px]">
       <PageHeader
         eyebrow="Documentation"
-        title="How Tollgate works"
+        title="How Tessera works"
         description="A marketplace where the unit of sale is one HTTP request and the unit of trust is a refundable deposit."
       />
 

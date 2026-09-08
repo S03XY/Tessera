@@ -103,7 +103,7 @@ async function main() {
       console.log(`\ntopic ${state.topicId} (existing)`);
     } else {
       const response = await new TopicCreateTransaction()
-        .setTopicMemo("Tollgate call and refund receipts")
+        .setTopicMemo("Tessera call and refund receipts")
         .execute(client);
       const receipt = await response.getReceipt(client);
       state.topicId = receipt.topicId.toString();
@@ -132,7 +132,7 @@ async function main() {
         const response = await new AccountCreateTransaction()
           .setKeyWithoutAlias(sellerKey.publicKey)
           .setInitialBalance(new Hbar(SELLER_FUNDING_HBAR))
-          .setAccountMemo(`Tollgate seller: ${seller.display_name}`)
+          .setAccountMemo(`Tessera seller: ${seller.display_name}`)
           .execute(client);
         const receipt = await response.getReceipt(client);
         const accountId = receipt.accountId.toString();
@@ -173,7 +173,7 @@ async function main() {
       const transaction = await new TransferTransaction()
         .addHbarTransfer(record.accountId, amount.negated())
         .addHbarTransfer(operatorId, amount)
-        .setTransactionMemo("Tollgate seller deposit")
+        .setTransactionMemo("Tessera seller deposit")
         .freezeWith(client)
         .sign(sellerKey);
 

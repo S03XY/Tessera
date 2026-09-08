@@ -41,8 +41,8 @@ CREATE INDEX services_upstream_kind_idx ON services (upstream_kind);
 -- ---------------------------------------------------------------------------
 -- The second leg of the purchase.
 --
--- A Graph-backed call is two payments, not one: the buyer pays Tollgate in
--- HBAR on Hedera, and Tollgate pays The Graph in USDC on Base. Both belong on
+-- A Graph-backed call is two payments, not one: the buyer pays Tessera in
+-- HBAR on Hedera, and Tessera pays The Graph in USDC on Base. Both belong on
 -- the call row, next to each other, or the receipt only tells half the story.
 --
 -- upstream_cost_atomic is USDC base units (6 decimals) — an integer, never a

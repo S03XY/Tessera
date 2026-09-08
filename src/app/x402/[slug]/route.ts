@@ -129,8 +129,8 @@ async function handle(
         status: 402,
         headers: {
           "cache-control": "no-store",
-          "x-tollgate-units": String(units),
-          "x-tollgate-unit": service.price_unit,
+          "x-tessera-units": String(units),
+          "x-tessera-unit": service.price_unit,
         },
       },
     );
@@ -403,12 +403,12 @@ async function handle(
       "content-type": upstreamContentType,
       "cache-control": "no-store",
       "x-payment-response": encodeSettlementHeader(settlement),
-      "x-tollgate-call-id": callId,
-      "x-tollgate-units": String(metered.units),
-      "x-tollgate-unit": service.price_unit,
-      "x-tollgate-paid": paidAmount,
-      "x-tollgate-truncated": String(metered.truncated),
-      "x-tollgate-tx": settlement.transaction,
+      "x-tessera-call-id": callId,
+      "x-tessera-units": String(metered.units),
+      "x-tessera-unit": service.price_unit,
+      "x-tessera-paid": paidAmount,
+      "x-tessera-truncated": String(metered.truncated),
+      "x-tessera-tx": settlement.transaction,
     },
   });
 }

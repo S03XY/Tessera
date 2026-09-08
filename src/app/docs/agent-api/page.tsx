@@ -114,11 +114,11 @@ const data = await fetch(paidUrl, { headers: { "X-PAYMENT": header } });`}
           <dl className="divide-y divide-line text-[12.5px]">
             {[
               ["X-PAYMENT-RESPONSE", "Base64 settlement receipt from the facilitator."],
-              ["X-Tollgate-Tx", "Hedera transaction id that paid the seller."],
-              ["X-Tollgate-Call-Id", "Marketplace call id, for the receipt page and disputes."],
-              ["X-Tollgate-Units", "Units actually billed."],
-              ["X-Tollgate-Paid", "Amount settled, in atomic units."],
-              ["X-Tollgate-Truncated", "Whether the response was trimmed to the paid budget."],
+              ["X-Tessera-Tx", "Hedera transaction id that paid the seller."],
+              ["X-Tessera-Call-Id", "Marketplace call id, for the receipt page and disputes."],
+              ["X-Tessera-Units", "Units actually billed."],
+              ["X-Tessera-Paid", "Amount settled, in atomic units."],
+              ["X-Tessera-Truncated", "Whether the response was trimmed to the paid budget."],
             ].map(([name, description]) => (
               <div key={name} className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2.5">
                 <dt className="w-[190px] shrink-0 font-mono text-[11.5px] text-ink">{name}</dt>

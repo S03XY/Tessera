@@ -1,5 +1,5 @@
 -- ===========================================================================
--- Tollgate — initial schema.
+-- Tessera — initial schema.
 --
 -- Source-of-truth rule: the chain is authoritative for every value transfer.
 -- Postgres is a read model. Any column holding an amount that moved must sit

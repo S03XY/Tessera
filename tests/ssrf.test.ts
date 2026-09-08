@@ -60,7 +60,7 @@ describe("assertPublicUrl — rejects", () => {
     ["gopher protocol", "gopher://example.com/", /unsupported protocol/],
     ["embedded credentials", "https://user:pass@example.com/", /credentials/],
     ["not a URL", "just a string", /valid absolute URL/],
-    ["unresolvable host", "https://this-host-does-not-exist-tollgate.invalid/", /does not resolve/],
+    ["unresolvable host", "https://this-host-does-not-exist-tessera.invalid/", /does not resolve/],
   ];
 
   it.each(cases)("%s", async (_label, url, expected) => {

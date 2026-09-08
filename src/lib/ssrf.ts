@@ -146,7 +146,7 @@ export async function fetchUpstream(
       redirect: "manual",
       headers: {
         accept: "application/json, text/plain;q=0.9, */*;q=0.5",
-        "user-agent": "Tollgate-Gateway/0.1 (+https://github.com/tollgate)",
+        "user-agent": "Tessera-Gateway/0.1 (+https://github.com/tessera)",
         ...(init.headers ?? {}),
       },
     });

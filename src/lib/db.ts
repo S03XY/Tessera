@@ -15,7 +15,7 @@ types.setTypeParser(types.builtins.NUMERIC, (value) => value);
 types.setTypeParser(types.builtins.INT8, (value) => value);
 
 declare global {
-  var __tollgatePool: Pool | undefined;
+  var __tesseraPool: Pool | undefined;
 }
 
 function createPool(): Pool {
@@ -39,8 +39,8 @@ function createPool(): Pool {
 }
 
 export function pool(): Pool {
-  if (!globalThis.__tollgatePool) globalThis.__tollgatePool = createPool();
-  return globalThis.__tollgatePool;
+  if (!globalThis.__tesseraPool) globalThis.__tesseraPool = createPool();
+  return globalThis.__tesseraPool;
 }
 
 export async function query<T = Record<string, unknown>>(

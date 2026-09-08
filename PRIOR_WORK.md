@@ -1,6 +1,6 @@
 # Prior work disclosure — ETHOnline 2026
 
-**Tollgate is submitted on the ETHGlobal Continuity Track ("Extend Open
+**Tessera is submitted on the ETHGlobal Continuity Track ("Extend Open
 Source"). Part of this repository pre-dates the event. This document draws the
 line, so nothing about it has to be taken on trust.**
 
@@ -108,6 +108,8 @@ with disputes settled by ERC-1400 *holds*.
 Live on Hedera testnet: **Tollgate Seller Deposit Bond (TGDEP)**, ISIN
 `XFTGDEP00013`, contract
 [`0.0.10367762`](https://hashscan.io/testnet/contract/0.0.10367762).
+The bond was issued before the project was renamed, so it carries the earlier
+name, Tollgate. The contract id is the identity that matters.
 
 A full dispute ran end to end — issue, hold, read, execute — finishing at
 seller 175, buyer 25, **marketplace 0**. The marketplace mediated a payout
@@ -155,7 +157,7 @@ Named here on purpose. Each is a real limitation, not a rough edge.
    topic, and it does custody seller dispute deposits. That is the honest
    trust boundary.
 
-3. **Separate chains are separate.** Where Tollgate offers payment on more
+3. **Separate chains are separate.** Where Tessera offers payment on more
    than one network, those networks have no connection to each other and
    nothing bridges between them. It is one paywall offering a menu of
    independent settlement options, which is what x402 was designed for.

@@ -345,8 +345,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     }
 
     result.paid = true;
-    result.transaction = response.headers.get("x-tollgate-tx");
-    result.callId = response.headers.get("x-tollgate-call-id");
+    result.transaction = response.headers.get("x-tessera-tx");
+    result.callId = response.headers.get("x-tessera-call-id");
     result.response = text.slice(0, 4000);
 
     step({
@@ -357,8 +357,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       data: {
         transaction: result.transaction,
         call_id: result.callId,
-        units: response.headers.get("x-tollgate-units"),
-        paid: response.headers.get("x-tollgate-paid"),
+        units: response.headers.get("x-tessera-units"),
+        paid: response.headers.get("x-tessera-paid"),
       },
       ms: Date.now() - t3,
     });

@@ -183,7 +183,7 @@ interface NetworkSubgraphRow {
 }
 
 const SEARCH_QUERY = `
-  query TollgateSubgraphSearch($text: String!, $first: Int!) {
+  query TesseraSubgraphSearch($text: String!, $first: Int!) {
     subgraphs(
       first: $first
       orderBy: currentSignalledTokens
@@ -241,7 +241,7 @@ export async function searchSubgraphs(
 /* ------------------------------------------------------------------ schema */
 
 const INTROSPECTION_QUERY = `
-  query TollgateIntrospect {
+  query TesseraIntrospect {
     __schema {
       queryType { name }
       types {
@@ -513,7 +513,7 @@ export function standardDeployment(slug: string): StandardDeployment | null {
  * schema is that this string does not change per chain.
  */
 export const MESSARI_LENDING_QUERY = `
-  query TollgateLendingMarkets($first: Int!) {
+  query TesseraLendingMarkets($first: Int!) {
     markets(first: $first, orderBy: totalValueLockedUSD, orderDirection: desc) {
       id
       name
