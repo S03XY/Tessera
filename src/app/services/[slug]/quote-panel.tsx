@@ -100,7 +100,7 @@ export function QuotePanel({
                 max={100000}
                 value={units}
                 onChange={(event) => setUnits(event.target.value)}
-                className="h-9 w-full rounded-md border border-line-2 bg-bg px-2.5 text-[13px] text-ink transition-colors hover:border-line-3 focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accent/12"
+                className="h-9 w-full rounded-none border border-line-2 bg-bg px-2.5 text-[13px] text-ink transition-colors hover:border-line-3 focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accent/12"
               />
             </div>
           )}
@@ -146,7 +146,7 @@ export function QuotePanel({
         {state === "error" && message && <Callout tone="bad">{message}</Callout>}
 
         {state === "done" && accept && (
-          <div className="animate-fade-up space-y-3">
+          <div className="animate-seat space-y-3">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-warn-line bg-warn-soft px-2 py-0.5 font-mono text-[11.5px] font-medium text-warn">
                 <TickIcon />
@@ -157,7 +157,7 @@ export function QuotePanel({
               </span>
             </div>
 
-            <div className="overflow-hidden rounded-md border border-line">
+            <div className="overflow-hidden rounded-none border border-line">
               <dl className="divide-y divide-line text-[12.5px]">
                 <Row label="Amount">
                   <span className="tnum font-mono text-ink">
@@ -230,7 +230,16 @@ function Step({ label, active }: { label: string; active: boolean }) {
         active ? "text-ink-2" : "text-ink-4",
       )}
     >
-      <span className="size-1.5 rounded-full bg-accent animate-pulse-ring" />
+      {/* Only the step actually running is lit; the rest sit dark. */}
+      <span
+        aria-hidden="true"
+        className={cx(
+          "size-1.5 shrink-0 rounded-full",
+          active
+            ? "animate-lamp bg-ink shadow-[0_0_5px_rgba(255,255,255,0.55)]"
+            : "bg-ink-4/50",
+        )}
+      />
       {label}
     </div>
   );

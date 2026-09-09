@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { discoverServices } from "@/lib/repo";
 import { isPriceUnit } from "@/lib/money";
 import { BASE_URL } from "@/lib/config";
+import { buyerAgentIdentity, sellerIdentity } from "@/lib/agent-identity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,11 @@ export const dynamic = "force-dynamic";
  * This is the endpoint an autonomous buyer hits: plain HTTP, no key, no
  * session. Results carry the paid URL so an agent can go straight from
  * "find me a gold price" to a 402 without scraping a web page.
+ *
+ * Every seller is published with its HCS-14 Universal Agent ID. That
+ * identifier is derived, not assigned, so a buyer can recompute it from the
+ * seller's public details and confirm it is dealing with the same counterparty
+ * it dealt with last time — without this marketplace vouching for anyone.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -45,6 +51,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       count: payable.length,
+      /** HCS-14 identity of the reference buyer this marketplace operates. */
+      agent: process.env.AGENT_ACCOUNT_ID
+        ? buyerAgentIdentity(process.env.AGENT_ACCOUNT_ID).uaid
+        : null,
       query: {
         q: params.get("q") ?? null,
         category: params.get("category") ?? null,
@@ -66,6 +76,7 @@ export async function GET(request: NextRequest) {
           name: service.seller_name,
           account: service.seller_account,
           verified: service.seller_status === "verified",
+          uaid: sellerIdentity(service.seller_account, service.seller_name).uaid,
         },
         stats: {
           calls_ok: Number(service.calls_ok),

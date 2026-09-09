@@ -76,16 +76,28 @@ async function CategoryBar({ active, q }: { active: string; q: string }) {
     return qs ? `/services?${qs}` : "/services";
   };
 
+  /*
+   * A segmented selector: one recessed well with keys seated in it. The
+   * selected key is the only bright part in the control row, which is how the
+   * eye finds the current filter when there is no colour to look for.
+   */
+  const key = (selected: boolean) =>
+    cx(
+      "rounded-none px-2.5 py-1 text-[12px] transition-[background-color,color,box-shadow] duration-150",
+      selected
+        ? "machined-bright struck font-semibold"
+        : "text-ink-3 hover:bg-white/[0.055] hover:text-ink",
+    );
+
   return (
-    <nav className="flex flex-wrap items-center gap-1.5" aria-label="Categories">
+    <nav
+      className="well flex flex-wrap items-center gap-1 rounded-none p-1"
+      aria-label="Categories"
+    >
       <Link
         href={href("")}
-        className={cx(
-          "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
-          active === ""
-            ? "border-ink bg-ink text-white"
-            : "border-line-2 bg-bg text-ink-2 hover:border-line-3 hover:text-ink",
-        )}
+        aria-current={active === "" ? "true" : undefined}
+        className={key(active === "")}
       >
         All
       </Link>
@@ -93,15 +105,11 @@ async function CategoryBar({ active, q }: { active: string; q: string }) {
         <Link
           key={item.category}
           href={href(item.category)}
-          className={cx(
-            "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
-            active === item.category
-              ? "border-ink bg-ink text-white"
-              : "border-line-2 bg-bg text-ink-2 hover:border-line-3 hover:text-ink",
-          )}
+          aria-current={active === item.category ? "true" : undefined}
+          className={key(active === item.category)}
         >
           {item.category}
-          <span className="ml-1.5 text-[11px] opacity-55">{item.count}</span>
+          <span className="ml-1.5 font-mono text-[10.5px] opacity-60">{item.count}</span>
         </Link>
       ))}
     </nav>
@@ -147,7 +155,10 @@ async function Results({
             <Th>Seller</Th>
             <Th>Metering</Th>
             <Th align="right">Success</Th>
-            <Th align="right">Price</Th>
+            <Th align="right" className="pr-1.5">
+              Price
+            </Th>
+            <Th className="pl-0" />
           </tr>
         </thead>
         <tbody>
@@ -192,13 +203,14 @@ async function Results({
                   </span>
                 )}
               </Td>
-              <Td align="right" className="whitespace-nowrap">
+              <Td align="right" className="whitespace-nowrap pr-1.5">
                 <span className="tnum font-mono text-[12.5px] text-ink">
-                  {formatAmount(service.price_amount, service.asset_decimals)} ℏ
+                  {formatAmount(service.price_amount, service.asset_decimals)}
                 </span>
-                <span className="ml-1 text-[11.5px] text-ink-4">
-                  /{PRICE_UNIT_LABEL[service.price_unit]}
-                </span>
+                <span className="ml-1 font-mono text-[11px] text-ink-3">ℏ</span>
+              </Td>
+              <Td className="whitespace-nowrap pl-0 font-mono text-[10.5px] uppercase tracking-[0.07em] text-ink-4">
+                /{PRICE_UNIT_LABEL[service.price_unit]}
               </Td>
             </tr>
           ))}

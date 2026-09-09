@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getSellerByAccount, listServicesForSeller } from "@/lib/repo";
 import { formatAmount, PRICE_UNIT_LABEL } from "@/lib/money";
 import { MIN_DEPOSIT_TINYBARS, hashscanAccount } from "@/lib/config";
+import { readDepositUnits, hashscanToken } from "@/lib/tokenized-deposit";
 import {
   Badge,
   Callout,
@@ -43,6 +44,17 @@ export default async function SellerPage({
   const deposit = BigInt(seller.deposit_amount);
   const short = deposit < MIN_DEPOSIT_TINYBARS;
 
+  /**
+   * When this seller's deposit has been tokenized, the bond is the authority
+   * on how many units they hold, so read it rather than trusting our own
+   * column. Returns null if the relay is unreachable; the panel says so and
+   * the page still renders.
+   */
+  const bond =
+    seller.ats_token_id && seller.ats_holder_address
+      ? await readDepositUnits(seller.ats_token_id, seller.ats_holder_address)
+      : null;
+
   const delivered = Number(seller.calls_ok);
   const disputed = Number(seller.calls_disputed);
   const reputation = delivered + disputed > 0 ? delivered / (delivered + disputed) : null;
@@ -57,7 +69,7 @@ export default async function SellerPage({
         <span className="text-ink-2">{seller.display_name}</span>
       </nav>
 
-      <header className="animate-fade-up">
+      <header className="animate-seat">
         <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="text-[26px] font-[560] tracking-[-0.02em] text-ink">
             {seller.display_name}
@@ -100,7 +112,7 @@ export default async function SellerPage({
         </div>
       )}
 
-      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="mt-6 grid min-w-0 items-start gap-5 lg:grid-cols-[1fr_320px] [&>*]:min-w-0">
         <Panel className="overflow-hidden">
           <PanelHeader
             title={`${services.length} service${services.length === 1 ? "" : "s"}`}
@@ -162,7 +174,7 @@ export default async function SellerPage({
               <p className="tnum font-mono text-[22px] font-medium text-ink">
                 {formatAmount(deposit)} <span className="text-[15px]">ℏ</span>
               </p>
-              <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-bg-inset">
+              <div className="mt-2.5 h-1 w-full overflow-hidden rounded-none bg-bg-inset">
                 <div
                   className={short ? "h-full bg-bad" : "h-full bg-ok"}
                   style={{
@@ -197,6 +209,63 @@ export default async function SellerPage({
               ]}
             />
           </Panel>
+
+          {seller.ats_token_id && (
+            <Panel className="h-fit overflow-hidden">
+              <PanelHeader
+                title="Tokenized deposit"
+                description="An ERC-1400 security token issued through Hedera's Asset Tokenization Studio."
+              />
+              <div className="border-b border-line px-4 py-4">
+                {bond ? (
+                  <>
+                    <p className="tnum font-mono text-[22px] font-medium text-ink">
+                      {bond.units.toLocaleString()}{" "}
+                      <span className="text-[15px] text-ink-3">units</span>
+                    </p>
+                    <p className="mt-2 text-[12px] text-ink-3">
+                      Read from the bond itself over the JSON-RPC relay, not from
+                      this database. Disputes move these units with an ERC-1400
+                      hold, so the marketplace can pay a wronged buyer and can
+                      never take the deposit for itself.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[12.5px] text-ink-3">
+                    The balance could not be read from the relay just now. The
+                    bond is unaffected; only this reading failed.
+                  </p>
+                )}
+              </div>
+              <KeyValue
+                items={[
+                  {
+                    label: "Bond",
+                    value: (
+                      <a
+                        href={hashscanToken(seller.ats_token_id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-[12.5px] text-accent underline-offset-4 hover:underline"
+                      >
+                        {seller.ats_token_id}
+                      </a>
+                    ),
+                  },
+                  {
+                    label: "Holder",
+                    value: (
+                      <Mono className="text-[11.5px]">
+                        {seller.ats_holder_address
+                          ? `${seller.ats_holder_address.slice(0, 10)}…${seller.ats_holder_address.slice(-6)}`
+                          : "—"}
+                      </Mono>
+                    ),
+                  },
+                ]}
+              />
+            </Panel>
+          )}
 
           <Panel className="h-fit overflow-hidden">
             <PanelHeader title="Reputation" description="Counted from settled calls." />

@@ -76,7 +76,7 @@ export default async function ServiceDetailPage({
         <span className="text-ink-2">{service.name}</span>
       </nav>
 
-      <header className="animate-fade-up">
+      <header className="animate-seat">
         <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="text-[26px] font-[560] tracking-[-0.02em] text-ink">
             {service.name}
@@ -111,7 +111,7 @@ export default async function ServiceDetailPage({
         </div>
       )}
 
-      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[1fr_380px]">
+      <div className="mt-6 grid min-w-0 items-start gap-5 lg:grid-cols-[1fr_380px] [&>*]:min-w-0">
         {/* Left column ------------------------------------------------- */}
         <div className="space-y-5">
           <QuotePanel
@@ -245,7 +245,7 @@ export default async function ServiceDetailPage({
                 <p className="mb-1.5 text-[11.5px] font-medium uppercase tracking-[0.06em] text-ink-3">
                   Paid endpoint
                 </p>
-                <pre className="whitespace-pre-wrap break-all rounded-md border border-line bg-bg-subtle px-2.5 py-2 font-mono text-[11.5px] leading-relaxed text-ink-2">
+                <pre className="whitespace-pre-wrap break-all rounded-none border border-line bg-bg-subtle px-2.5 py-2 font-mono text-[11.5px] leading-relaxed text-ink-2">
                   {`${BASE_URL}/x402/${service.slug}`}
                 </pre>
               </div>
@@ -253,7 +253,7 @@ export default async function ServiceDetailPage({
                 <p className="mb-1.5 text-[11.5px] font-medium uppercase tracking-[0.06em] text-ink-3">
                   Get the quote
                 </p>
-                <pre className="whitespace-pre-wrap break-all rounded-md border border-line bg-bg-subtle px-2.5 py-2 font-mono text-[11.5px] leading-relaxed text-ink-2">
+                <pre className="whitespace-pre-wrap break-all rounded-none border border-line bg-bg-subtle px-2.5 py-2 font-mono text-[11.5px] leading-relaxed text-ink-2">
                   {`curl -i ${BASE_URL}/x402/${service.slug}${
                     service.price_unit === "per_call" ? "" : "?units=50"
                   }`}

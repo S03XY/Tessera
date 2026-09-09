@@ -70,3 +70,46 @@ export const DEPOSIT_BOND_TOKEN_ID = process.env.DEPOSIT_BOND_TOKEN_ID ?? "";
 export function graphMode(): "live" | "unconfigured" {
   return process.env.GRAPH_API_KEY ? "live" : "unconfigured";
 }
+
+
+/**
+ * The agent's spending mandate on 1inch Aqua.
+ *
+ * Aqua exists on Base and Arbitrum mainnet only, with no testnet deployment,
+ * so this points wherever the modified SwapVM router was deployed. Left blank,
+ * the agent falls back to the per-call cap it enforces itself, and every
+ * surface says which of the two is in force.
+ */
+/**
+ * Environment parsing must never throw at module load. A malformed value here
+ * would take down every route in the application, not just the feature it
+ * configures — so a bad value degrades to the default and the feature reports
+ * itself unconfigured instead.
+ */
+function envBigInt(raw: string | undefined, fallback: bigint): bigint {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  try {
+    return BigInt(raw.trim());
+  } catch {
+    return fallback;
+  }
+}
+
+function envInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+export const MANDATE = {
+  router: process.env.MANDATE_ROUTER ?? "",
+  owner: process.env.MANDATE_OWNER ?? "",
+  /** The order hash the daily budget is counted against. */
+  orderHash: process.env.MANDATE_ORDER_HASH ?? "",
+  mandateId: envInt(process.env.MANDATE_ID, 7),
+  dailyCap: envBigInt(process.env.MANDATE_DAILY_CAP, 0n),
+  chain: process.env.MANDATE_CHAIN ?? "base",
+  rpcUrl: process.env.MANDATE_RPC_URL ?? "https://mainnet.base.org",
+  explorerBase: process.env.MANDATE_EXPLORER ?? "https://basescan.org",
+  /** Decimals of the token the mandate is denominated in. */
+  decimals: envInt(process.env.MANDATE_DECIMALS, 18),
+};

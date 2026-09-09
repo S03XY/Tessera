@@ -21,6 +21,15 @@ export interface SellerRow {
   calls_disputed: string;
   calls_refunded: string;
   created_at: string;
+
+  /**
+   * Set when this seller's deposit has been issued as an ERC-1400 security
+   * token through Hedera's Asset Tokenization Studio. The bond is the
+   * authority on how many units the seller actually holds; these two columns
+   * only record where to look.
+   */
+  ats_token_id: string | null;
+  ats_holder_address: string | null;
 }
 
 export interface ServiceRow {

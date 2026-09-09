@@ -8,6 +8,14 @@ import { parsePrivateKey } from "@/lib/hedera";
 import { formatAmount, normalizeUnits, quoteFor, type PriceUnit } from "@/lib/money";
 import { BASE_URL, X402_NETWORK } from "@/lib/config";
 import { X402_VERSION } from "@/lib/x402";
+import {
+  readMandate,
+  mandateRefusal,
+  describeRefusal,
+  formatMandateUnits,
+  mandateConfigured,
+  type MandateState,
+} from "@/lib/mandate";
 
 /**
  * The buyer agent.
@@ -276,6 +284,80 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     detail: `${formatAmount(requirements.amount)} ℏ is within the ${formatAmount(cap)} ℏ per-call cap.`,
     data: { quote: requirements.amount, cap: cap.toString() },
   });
+
+  /* -------------------------------------------------------- on-chain mandate */
+
+  /**
+   * The cap above is ours, so it holds because this code behaves. The mandate
+   * is the same question asked of a contract the agent cannot reach, and it
+   * outranks us: if the owner has revoked it or today's budget is gone, no
+   * amount of local permission makes the spend legitimate.
+   */
+  let mandate: MandateState | null = null;
+  if (mandateConfigured) {
+    mandate = await readMandate();
+
+    if (!mandate) {
+      step({
+        key: "mandate",
+        title: "Check on-chain mandate",
+        status: "failed",
+        detail:
+          "A mandate is configured but could not be read. Refusing to spend rather " +
+          "than assuming permission that was not granted.",
+        data: { configured: true },
+      });
+      result.error = "mandate_unreadable";
+      return result;
+    }
+
+    const refusal = mandateRefusal(mandate);
+    if (refusal) {
+      step({
+        key: "mandate",
+        title: "Check on-chain mandate",
+        status: "failed",
+        detail: describeRefusal(refusal, mandate),
+        data: {
+          reason: refusal,
+          revoked: mandate.revoked,
+          spent_today: mandate.spentToday.toString(),
+          daily_cap: mandate.dailyCap.toString(),
+          router: mandate.router,
+          chain: mandate.chain,
+        },
+      });
+      result.error = `mandate_${refusal}`;
+      return result;
+    }
+
+    step({
+      key: "mandate",
+      title: "Check on-chain mandate",
+      status: "ok",
+      detail:
+        `Mandate #${mandate.mandateId} is live on ${mandate.chain} with ` +
+        `${formatMandateUnits(mandate.remaining)} of ${formatMandateUnits(mandate.dailyCap)} ` +
+        `left today. The owner can revoke it in one transaction and this agent stops ` +
+        `spending, here included.`,
+      data: {
+        router: mandate.router,
+        chain: mandate.chain,
+        remaining: mandate.remaining.toString(),
+        daily_cap: mandate.dailyCap.toString(),
+      },
+    });
+  } else {
+    step({
+      key: "mandate",
+      title: "Check on-chain mandate",
+      status: "skipped",
+      detail:
+        "No mandate configured, so the per-call cap above is enforced by this code " +
+        "alone. Point MANDATE_ROUTER at a deployed Aqua router to move that guarantee on chain.",
+      data: { configured: false },
+    });
+  }
 
   /* ----------------------------------------------------------------- pay */
 

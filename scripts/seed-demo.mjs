@@ -231,6 +231,19 @@ const SELLERS = [
     verified: true,
     deposit: tinybars(25),
     /**
+     * This seller's deposit is not just a number in this database — it is a
+     * real ERC-1400 security token on Hedera testnet, issued through the
+     * Asset Tokenization Studio. The app reads the balance straight off the
+     * bond, so what a visitor sees is the chain's answer, not ours.
+     *
+     * The holder finished the demonstrated dispute lifecycle with 175 of the
+     * 200 units it was issued; the other 25 went to the wronged buyer.
+     */
+    ats: {
+      token_id: "0.0.10367762",
+      holder_address: "0x930D0145DC771Acc82c00504260E133e6184eb84",
+    },
+    /**
      * Graph-backed listings. These are not URLs behind a paywall — they are
      * subgraphs, executed against The Graph's gateway with the marketplace's
      * own key, and resold in HBAR so the buying agent never needs a Base
@@ -260,17 +273,17 @@ const SELLERS = [
       },
       {
         slug: "lending-markets-base",
-        keywords: ["lending", "borrow", "supply", "tvl", "defi", "aave", "money market", "collateral", "base"],
+        keywords: ["lending", "borrow", "supply", "tvl", "defi", "moonwell", "money market", "collateral", "base"],
         name: "Lending Markets — Base",
         description:
-          "The same Messari standardized lending schema, indexed on Base. Identical query document, different chain — the point of a standardized schema.",
+          "The same Messari standardized lending schema, indexed on Base — and a different protocol. Aave on Ethereum and Moonwell on Base answer one identical query document, which is the whole point of a standardized schema.",
         category: "defi",
         upstream_kind: "graph_subgraph",
-        upstream_ref: "D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9",
+        upstream_ref: "33ex1ExmYQtwGVwri1AP3oMFPGSce6YbocBP7fWbsBrg",
         upstream_schema: "messari/lending@3.1.0",
         upstream_chain: "base",
         upstream_query: MESSARI_LENDING_QUERY,
-        endpoint_url: "https://gateway.thegraph.com/api/subgraphs/id/D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9",
+        endpoint_url: "https://gateway.thegraph.com/api/subgraphs/id/33ex1ExmYQtwGVwri1AP3oMFPGSce6YbocBP7fWbsBrg",
         price: GRAPH_PRICE_PER_ROW,
         unit: "per_row",
       },
@@ -311,10 +324,13 @@ export async function seedDemo(client) {
         `INSERT INTO sellers
            (account_id, display_name, contact_url, verification_status,
             verified_at, world_nullifier, world_credential,
-            deposit_amount, deposit_asset, deposit_tx)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'0.0.0',$9)
+            deposit_amount, deposit_asset, deposit_tx,
+            ats_token_id, ats_holder_address)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'0.0.0',$9,$10,$11)
          ON CONFLICT (account_id) DO UPDATE
-           SET display_name = EXCLUDED.display_name
+           SET display_name        = EXCLUDED.display_name,
+               ats_token_id        = EXCLUDED.ats_token_id,
+               ats_holder_address  = EXCLUDED.ats_holder_address
          RETURNING id`,
         [
           provisioned[seller.display_name]?.accountId ?? seller.account_id,
@@ -326,6 +342,8 @@ export async function seedDemo(client) {
           seller.verified ? "selfie-check-seed" : null,
           seller.deposit,
           `seed-deposit-${seller.key}`,
+          seller.ats?.token_id ?? null,
+          seller.ats?.holder_address ?? null,
         ],
       );
       const sellerId = rows[0].id;

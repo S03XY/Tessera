@@ -234,11 +234,17 @@ function Step({
         <span
           className={cx(
             "flex size-7 shrink-0 items-center justify-center rounded-full border text-[12px] font-medium transition-colors",
+            /*
+             * The three states are three materials, so they stay legible with
+             * no hue: a finished step is seated into the panel, the active one
+             * is the bright part that has been raised, and an untouched step
+             * is an unfinished blank.
+             */
             state === "done"
-              ? "border-ok bg-ok text-white"
+              ? "well border-transparent text-ink-2"
               : state === "active"
-                ? "border-ink bg-ink text-white"
-                : "border-line-2 bg-bg text-ink-4",
+                ? "machined-bright struck border-transparent font-semibold shadow-[0_0_0_4px_var(--color-accent-soft),0_2px_6px_rgba(0,0,0,0.7)]"
+                : "border-line-2 bg-bg-inset text-ink-4",
           )}
         >
           {state === "done" ? (

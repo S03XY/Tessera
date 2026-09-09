@@ -1,63 +1,103 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   Tessera design tokens — light theme only.
-   Warm-neutral greys, hairline borders, small radii, one interactive accent.
+   Tessera — machined monochrome.
+
+   The whole system is one physical conceit: this is an instrument, milled
+   from a graphite block, with a few parts turned from bright metal. There is
+   no hue anywhere. Depth comes from a single, consistent light source
+   directly overhead — every raised part catches light on its top edge and
+   drops shadow off its bottom, every recessed part does exactly the inverse.
+   Get that one rule wrong in one place and the whole illusion collapses,
+   which is why the bevels below are utilities and never written inline.
    ========================================================================== */
 
 @theme {
-  /* Ink ------------------------------------------------------------------ */
-  --color-ink: #16181c;
-  --color-ink-2: #565a62;
-  --color-ink-3: #8a8e96;
-  --color-ink-4: #adb1b8;
+  /* Ink ------------------------------------------------------------------
+     Very slightly warm greys, the colour of a screen-printed label rather
+     than pure #fff. Four steps, each measured against both the canvas and a
+     raised panel face: 16.6 / 9.4 / 6.2 / 4.5 : 1. The dimmest step still
+     clears WCAG AA on the lightest surface it is ever placed on.          */
+  --color-ink: #ededec;
+  --color-ink-2: #b4b4b2;
+  --color-ink-3: #9a9a98;
+  --color-ink-4: #828280;
 
-  /* Surfaces ------------------------------------------------------------- */
-  --color-bg: #ffffff;
-  --color-bg-subtle: #fafaf9;
-  --color-bg-sunken: #f4f4f2;
-  --color-bg-inset: #eeeeeb;
+  /* Surfaces -------------------------------------------------------------
+     Neutral graphite. No blue cast — a cast would read as a colour choice,
+     and the point is that there isn't one.                                */
+  --color-bg-subtle: #08080a;
+  --color-bg: #0d0d0e;
+  --color-bg-sunken: #111112;
+  --color-bg-inset: #191919;
 
-  /* Lines ---------------------------------------------------------------- */
-  --color-line: #e7e7e4;
-  --color-line-2: #d6d6d2;
-  --color-line-3: #c2c2bd;
+  /* Bevel ----------------------------------------------------------------
+     The light source. One highlight value for every lit edge in the app, so
+     the sun never moves. Shadow depth is deliberately not tokenised — how
+     dark the underside of a part goes depends on how far it stands off the
+     block, and collapsing that to one value flattens everything.          */
+  --edge-hi: rgba(255, 255, 255, 0.115);
+  --edge-hi-strong: rgba(255, 255, 255, 0.2);
 
-  /* Accent (interactive) ------------------------------------------------- */
-  --color-accent: #1a56db;
-  --color-accent-hover: #1749bb;
-  --color-accent-soft: #eef2ff;
-  --color-accent-line: #c7d5f8;
+  /* Metal ----------------------------------------------------------------
+     Dark anodised parts (rails, secondary keys) and the bright turned
+     aluminium reserved for a single primary action per screen.            */
+  --metal-hi: #2e2e31;
+  --metal-lo: #17171a;
+  --metal-bright-hi: #f4f4f1;
+  --metal-bright-lo: #c4c4bf;
 
-  /* Semantic ------------------------------------------------------------- */
-  --color-ok: #0f7b52;
-  --color-ok-soft: #e9f6f0;
-  --color-ok-line: #b9e0cf;
+  /* Lines ----------------------------------------------------------------
+     Scribed lines, not borders. Three weights only.                       */
+  --color-line: rgba(255, 255, 255, 0.075);
+  --color-line-2: rgba(255, 255, 255, 0.13);
+  --color-line-3: rgba(255, 255, 255, 0.22);
 
-  --color-warn: #9a5b00;
-  --color-warn-soft: #fdf4e5;
-  --color-warn-line: #ecd7ac;
+  /* Accent ---------------------------------------------------------------
+     Monochrome: the "accent" is simply light. Focus and selection read as
+     polished metal catching the same overhead source.                     */
+  --color-accent: #ededec;
+  --color-accent-soft: rgba(255, 255, 255, 0.09);
+  --color-accent-line: rgba(255, 255, 255, 0.32);
 
-  --color-bad: #b42318;
-  --color-bad-soft: #fdecea;
-  --color-bad-line: #f3c9c4;
+  /* Semantic -------------------------------------------------------------
+     With hue gone, state is carried by material instead: a solid lamp for
+     good, a hatched plate for caution, an inverted bright plate for bad.
+     These tokens supply the luminance; the Badge component supplies the
+     texture. Never rely on the value alone to signal state.               */
+  --color-ok: #e8e8e6;
+  --color-ok-soft: rgba(255, 255, 255, 0.085);
+  --color-ok-line: rgba(255, 255, 255, 0.3);
 
-  /* Radii ---------------------------------------------------------------- */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
+  --color-warn: #b8b8b5;
+  --color-warn-soft: rgba(255, 255, 255, 0.05);
+  --color-warn-line: rgba(255, 255, 255, 0.19);
 
-  /* Type ----------------------------------------------------------------- */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+  --color-bad: #f2f2ef;
+  --color-bad-soft: rgba(255, 255, 255, 0.12);
+  --color-bad-line: rgba(255, 255, 255, 0.4);
+
+  /* Radii ----------------------------------------------------------------
+     There is no radius scale, and that is the rule rather than an omission.
+     Every surface is milled square (0px) and every control is turned round
+     (a full pill). Nothing in between: a 4px corner is the single most
+     reliable tell of a generic interface, because it is what you get when
+     nobody decided. Panels, wells, tables and inputs are sharp; buttons,
+     badges and lamps are round.                                           */
+
+  /* Type ------------------------------------------------------------------
+     An industrial grotesque for language, a mono for anything the machine
+     produced — money, hashes, account ids, status codes. The split is
+     semantic, not decorative: if a human wrote it, it is sans.            */
+  --font-sans: var(--font-display), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
-  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo,
-    monospace;
+  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Motion --------------------------------------------------------------- */
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+  /* Motion ---------------------------------------------------------------
+     Short and mechanical. Metal parts have mass; they do not float or
+     bounce, they seat.                                                    */
+  --ease-seat: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --ease-mech: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @layer base {
@@ -71,6 +111,7 @@
   }
 
   body {
+    position: relative;
     background-color: var(--color-bg-subtle);
     color: var(--color-ink);
     font-family: var(--font-sans);
@@ -78,7 +119,29 @@
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: "cv11", "ss01";
+  }
+
+  /*
+   * Grain. This is the single most important rule in the file: a flat RGB
+   * fill reads as "screen", a fill with micro-texture reads as a surface
+   * that could be touched. Fixed so it behaves like the material the page
+   * is printed on rather than something that scrolls with the content.
+   */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.32;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  /* Content sits above the grain. */
+  body > * {
+    position: relative;
+    z-index: 1;
   }
 
   /* Numerals in tables, prices and counters must not jitter. */
@@ -95,9 +158,9 @@
   h3,
   h4 {
     color: var(--color-ink);
-    font-weight: 560;
-    letter-spacing: -0.018em;
-    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.14;
   }
 
   code,
@@ -107,18 +170,18 @@
     font-family: var(--font-mono);
   }
 
+  /* Selection is a bright machined swatch, not a tint. */
   ::selection {
-    background: #dbe4fb;
-    color: var(--color-ink);
+    background: #ededec;
+    color: #0d0d0e;
   }
 
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: 2px;
   }
 
-  /* Native form controls inherit the type scale. */
   input,
   textarea,
   select,
@@ -127,21 +190,190 @@
     color: inherit;
   }
 
-  /* Firefox / WebKit scrollbars inside scroll regions. */
   .scroll-thin {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-line-2) transparent;
+    scrollbar-color: var(--color-line-3) transparent;
   }
 }
 
 /* ==========================================================================
-   Motion primitives
+   Materials
+
+   Three surfaces, and the rule that separates them:
+     matte     — the block itself. Flat, unlit, holds content.
+     machined  — a part standing off the block. Lit top, shadowed bottom.
+     well      — material removed. Shadowed top, lit bottom. Exactly the
+                 inverse of machined, which is what makes the two read as one
+                 set of physics rather than two unrelated card styles.
    ========================================================================== */
 
-@keyframes tg-fade-up {
+/* The block. Panels, cards, page sections. */
+@utility matte {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-line);
+}
+
+/*
+ * Material removed from the block. Used for anything you put something into:
+ * inputs, code transcripts, table bodies, the agent's run log. The bevel is
+ * exactly `machined` turned upside down, which is what makes the two read as
+ * the same physics rather than two unrelated card styles.
+ */
+@utility well {
+  background-color: var(--color-bg-subtle);
+  border: 1px solid transparent;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.75),
+    inset 0 -1px 0 var(--edge-hi),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+/*
+ * Dark anodised metal. Secondary keys, the header rail, tab strips.
+ * The gradient runs top-light to bottom-dark over ~40% of the height so the
+ * highlight sits where a cylinder would actually catch the overhead source,
+ * not smeared evenly down the face.
+ */
+@utility machined {
+  background-image: linear-gradient(
+    180deg,
+    var(--metal-hi) 0%,
+    #232326 45%,
+    var(--metal-lo) 100%
+  );
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow:
+    inset 0 1px 0 var(--edge-hi-strong),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/*
+ * The chassis rail. A part that spans a whole edge of the viewport, so the
+ * light cannot be a gradient down its length: stretched over 900px of spine
+ * that reads as a spotlight on the first key and shadow on the last. An
+ * extrusion lit from above is evenly bright along its run and falls off
+ * across its *width*, so the gradient runs across the 92px face instead, and
+ * the highlight lives in the 1px edge where the face turns over.
+ */
+@utility rail {
+  background-color: #141416;
+  background-image: linear-gradient(90deg, #191a1c 0%, #141416 62%, #101012 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/*
+ * Bright turned aluminium. One per screen, on the single action that matters.
+ * Bright metal in a monochrome system is the only "colour" available, so
+ * spending it twice on one page spends it to nothing.
+ */
+@utility machined-bright {
+  background-image: linear-gradient(
+    180deg,
+    var(--metal-bright-hi) 0%,
+    #e2e2de 46%,
+    var(--metal-bright-lo) 100%
+  );
+  color: #0d0d0e;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    0 8px 20px -10px rgba(0, 0, 0, 0.9);
+}
+
+/*
+ * Brushed finish. Fine vertical scribes read as metal drawn under an abrasive
+ * belt travelling horizontally. Kept under 3% contrast — at any more it stops
+ * being a finish and becomes a stripe pattern.
+ */
+@utility brushed {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.028) 0 1px,
+      transparent 1px 2px,
+      rgba(0, 0, 0, 0.03) 2px 3px,
+      transparent 3px 5px
+    );
+  }
+}
+
+/*
+/*
+ * Knurling. The cross-hatched grip you find on a machined dial. Used only on
+ * things you are meant to grab or that separate two regions — never as decor.
+ */
+@utility knurl {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.07) 0 1px,
+      transparent 1px 3px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(0, 0, 0, 0.35) 0 1px,
+      transparent 1px 3px
+    );
+}
+
+/*
+ * Engraved text: cut into the surface, so it takes shadow above and catches a
+ * hairline of light on the lower lip of the cut. Labels, eyebrows, the
+ * wordmark. Only legible at weight 500+ — below that the shadow eats the
+ * stroke, which is why it is never applied to body copy.
+ */
+@utility engraved {
+  color: var(--color-ink-3);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Struck into bright metal: the inverse, for text on a bright plate. */
+@utility struck {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+/*
+ * Hatching. The colourless substitute for amber. Diagonal machining marks
+ * across a chip say "attention" without a hue, and survive greyscale printing,
+ * colour-blindness and a bad projector at a demo.
+ */
+@utility hatched {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.09) 0 1px,
+    transparent 1px 4px
+  );
+}
+
+/*
+ * A scribed rule with a lit lower lip — the line you get where two milled
+ * faces meet. Replaces every plain 1px divider between stacked sections.
+ */
+@utility scribe {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: 0 1px 0 var(--edge-hi);
+}
+
+/* ==========================================================================
+   Motion — mechanical, short, no float
+   ========================================================================== */
+
+@keyframes tg-seat {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -164,25 +396,46 @@
   }
 }
 
-@keyframes tg-shimmer {
+/* A machined part being polished: a highlight travelling across the face. */
+@keyframes tg-buff {
   from {
-    background-position: -180% 0;
+    background-position: -140% 0;
   }
   to {
-    background-position: 180% 0;
+    background-position: 240% 0;
   }
 }
 
-@keyframes tg-pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 34%, transparent);
-  }
-  70% {
-    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 0%, transparent);
-  }
+/* The lamp on a live element, breathing between two luminances. */
+@keyframes tg-lamp {
+  0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.28);
   }
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes tg-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/*
+ * The marquee runs on two identical halves and travels exactly one half, so
+ * the loop is seamless with no JS measuring anything. Under reduced motion the
+ * blanket rule collapses it to its end state, which is still a valid static
+ * position rather than a broken half-scrolled frame.
+ */
+@utility animate-marquee {
+  animation: tg-marquee 38s linear infinite;
 }
 
 @keyframes tg-indeterminate {
@@ -203,77 +456,204 @@
   }
 }
 
-@utility animate-fade-up {
-  animation: tg-fade-up 0.34s var(--ease-out-soft) both;
+@utility animate-seat {
+  animation: tg-seat 0.26s var(--ease-seat) both;
 }
 
 @utility animate-fade-in {
-  animation: tg-fade 0.24s var(--ease-out-soft) both;
+  animation: tg-fade 0.2s var(--ease-mech) both;
 }
 
 @utility animate-spin-slow {
   animation: tg-spin 0.7s linear infinite;
 }
 
-@utility animate-pulse-ring {
-  animation: tg-pulse-ring 1.7s var(--ease-out-soft) infinite;
+@utility animate-lamp {
+  animation: tg-lamp 2s var(--ease-mech) infinite;
 }
 
 @utility animate-tick {
   stroke-dasharray: 24;
-  animation: tg-tick 0.4s var(--ease-out-soft) 0.06s both;
+  animation: tg-tick 0.34s var(--ease-seat) 0.05s both;
 }
 
-/* Skeleton shimmer used by every loading state. */
+/* Loading placeholder: a blank part being buffed, not a shimmering gradient. */
 @utility skeleton {
   background-color: var(--color-bg-inset);
   background-image: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.85) 50%,
+    rgba(255, 255, 255, 0.06) 50%,
     transparent 100%
   );
-  background-size: 180% 100%;
+  background-size: 160% 100%;
   background-repeat: no-repeat;
-  animation: tg-shimmer 1.5s ease-in-out infinite;
-  border-radius: var(--radius-sm);
+  animation: tg-buff 1.6s var(--ease-mech) infinite;
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 
-/* Indeterminate top-of-panel progress bar. */
 @utility bar-indeterminate {
   position: relative;
   overflow: hidden;
-  background-color: var(--color-bg-inset);
+  background-color: var(--color-bg-subtle);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
-/* Stagger children on mount without per-item JS. */
+/* Stagger children on mount. Tight delays — parts seating in sequence. */
 @utility stagger {
   & > * {
-    animation: tg-fade-up 0.34s var(--ease-out-soft) both;
+    animation: tg-seat 0.26s var(--ease-seat) both;
   }
   & > *:nth-child(1) {
     animation-delay: 0ms;
   }
   & > *:nth-child(2) {
-    animation-delay: 34ms;
+    animation-delay: 26ms;
   }
   & > *:nth-child(3) {
-    animation-delay: 68ms;
+    animation-delay: 52ms;
   }
   & > *:nth-child(4) {
-    animation-delay: 102ms;
+    animation-delay: 78ms;
   }
   & > *:nth-child(5) {
-    animation-delay: 136ms;
+    animation-delay: 104ms;
   }
   & > *:nth-child(6) {
-    animation-delay: 170ms;
+    animation-delay: 130ms;
   }
   & > *:nth-child(7) {
-    animation-delay: 204ms;
+    animation-delay: 156ms;
   }
   & > *:nth-child(8) {
-    animation-delay: 238ms;
+    animation-delay: 182ms;
+  }
+}
+
+/*
+ * Row hover. A part under the finger brightens because it is closer to the
+ * light — it does not lift, translate or scale. Nothing on a machined panel
+ * moves unless it is a control.
+ */
+@utility lit {
+  transition:
+    background-color 0.15s var(--ease-mech),
+    border-color 0.15s var(--ease-mech),
+    box-shadow 0.15s var(--ease-mech);
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.028);
+  }
+}
+
+/* ==========================================================================
+   Scroll-driven motion
+
+   Implemented with `animation-timeline`, not IntersectionObserver, for one
+   reason that matters more than elegance: the default state of every element
+   here is *visible*. A JS reveal has to hide content first and show it later,
+   so a failed script, a slow hydration or a crawler leaves a blank page. With
+   a scroll timeline the animation is progressive enhancement — browsers that
+   do not support it simply render the finished state.
+
+   The motion itself is the same physics as everything else: parts travel a
+   short distance and seat. Nothing fades in from far away, nothing scales.
+   ========================================================================== */
+
+@keyframes tg-seat-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A part seating as it comes up into view. */
+@utility seat-in {
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      animation: tg-seat-in linear both;
+      animation-timeline: view();
+      animation-range: entry 2% entry 44%;
+      will-change: transform, opacity;
+    }
+  }
+}
+
+/* Later, and over a longer run — for big blocks that should lag their label. */
+@utility seat-in-late {
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      animation: tg-seat-in linear both;
+      animation-timeline: view();
+      animation-range: entry 8% entry 58%;
+      will-change: transform, opacity;
+    }
+  }
+}
+
+@keyframes tg-scribe-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* A scribed rule drawn left to right as it enters. */
+@utility scribe-in {
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      transform-origin: left;
+      animation: tg-scribe-in linear both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 62%;
+    }
+  }
+}
+
+@keyframes tg-fill-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes tg-fill-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/*
+ * Travel indicators driven by document scroll — the position gauge on the
+ * rail. Unlike the reveals these are not decoration: they say how far through
+ * the document you are, which a fixed rail otherwise gives no clue about.
+ */
+@utility scroll-gauge-y {
+  transform-origin: top;
+  transform: scaleY(0);
+  @supports (animation-timeline: scroll()) {
+    animation: tg-fill-y linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+@utility scroll-gauge-x {
+  transform-origin: left;
+  transform: scaleX(0);
+  @supports (animation-timeline: scroll()) {
+    animation: tg-fill-x linear both;
+    animation-timeline: scroll(root block);
   }
 }
 
@@ -285,5 +665,16 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /*
+   * The blanket rule above collapses every animation to its end state, which
+   * for a progress gauge would paint a permanently full bar and lie about the
+   * scroll position. Pin them closed instead.
+   */
+  .scroll-gauge-y,
+  .scroll-gauge-x {
+    animation: none !important;
+    opacity: 0 !important;
   }
 }

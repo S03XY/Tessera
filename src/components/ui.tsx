@@ -9,25 +9,50 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md";
 
+/*
+ * Buttons are keys on a faceplate. Pressing one seats it into the panel: it
+ * travels 1px, its top highlight goes out, and the shadow beneath it closes
+ * up. That three-part change is what makes a press feel mechanical rather
+ * than like an opacity flicker.
+ */
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium " +
-  "transition-[background-color,border-color,color,box-shadow] duration-150 " +
-  "disabled:cursor-not-allowed disabled:opacity-45";
+  "relative inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap " +
+  "rounded-full font-medium tracking-[-0.005em] " +
+  "transition-[background-color,border-color,color,box-shadow,transform] duration-100 " +
+  "disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none";
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
+  /* Bright turned aluminium. One per screen — see globals.css. */
   primary:
-    "border-ink bg-ink text-white hover:bg-[#25282e] hover:border-[#25282e] active:bg-[#0f1013]",
+    "machined-bright brushed struck font-semibold " +
+    "hover:brightness-[1.06] " +
+    "active:translate-y-px active:shadow-[inset_0_2px_3px_rgba(0,0,0,0.32),0_0_0_1px_rgba(0,0,0,0.5)] " +
+    "disabled:active:translate-y-0",
+  /* Dark anodised key. */
   secondary:
-    "border-line-2 bg-bg text-ink hover:bg-bg-subtle hover:border-line-3 active:bg-bg-sunken",
+    "machined brushed text-ink " +
+    "hover:brightness-125 " +
+    "active:translate-y-px active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] " +
+    "disabled:active:translate-y-0",
+  /* No part at all — just a label cut into the panel. */
   ghost:
-    "border-transparent bg-transparent text-ink-2 hover:bg-bg-sunken hover:text-ink",
+    "border border-transparent text-ink-3 hover:bg-[rgba(255,255,255,0.045)] hover:text-ink " +
+    "active:translate-y-px disabled:active:translate-y-0",
+  /*
+   * Destructive reads as a hazard placard: hatched machining marks, a hard
+   * bright border. With no red available, texture has to do the warning.
+   */
   danger:
-    "border-bad bg-bad text-white hover:bg-[#9d1f15] hover:border-[#9d1f15]",
+    "hatched border border-line-3 bg-bg-inset text-ink " +
+    "shadow-[inset_0_1px_0_var(--edge-hi),0_1px_2px_rgba(0,0,0,0.6)] " +
+    "hover:border-[rgba(255,255,255,0.42)] hover:bg-[rgba(255,255,255,0.06)] " +
+    "active:translate-y-px active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] " +
+    "disabled:active:translate-y-0",
 };
 
 const BUTTON_SIZE: Record<ButtonSize, string> = {
-  sm: "h-7 px-2.5 text-[13px]",
-  md: "h-9 px-3.5 text-[13.5px]",
+  sm: "h-7 px-3.5 text-[12.5px]",
+  md: "h-9 px-5 text-[13px]",
 };
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -68,32 +93,61 @@ export function Spinner({ className }: { className?: string }) {
       aria-hidden="true"
       className={cx("animate-spin-slow size-4 shrink-0", className)}
     >
-      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeOpacity="0.22" strokeWidth="2" />
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeOpacity="0.22" strokeWidth="1.6" />
       <path
         d="M14.5 8A6.5 6.5 0 0 0 8 1.5"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="1.6"
         strokeLinecap="round"
       />
     </svg>
   );
 }
 
+/* ------------------------------------------------------------------- Lamp */
+
+/**
+ * The indicator lamp. Brightness is the signal: lit is on, dim is idle, and
+ * a ring means the state is unresolved. Every use is paired with a text
+ * label, because luminance alone must never be the only carrier of meaning.
+ */
+export function Lamp({
+  state = "on",
+  live = false,
+  className,
+}: {
+  state?: "on" | "idle" | "off";
+  live?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        "size-1.5 shrink-0 rounded-full",
+        state === "on" && "bg-ink shadow-[0_0_5px_rgba(255,255,255,0.55)]",
+        state === "idle" && "border border-ink-3 bg-transparent",
+        state === "off" && "bg-ink-4/50",
+        live && "animate-lamp",
+        className,
+      )}
+    />
+  );
+}
+
 /* ------------------------------------------------------------------- Panel */
 
+/**
+ * A section of the block. Flat and matte — panels hold content, they are not
+ * themselves parts, so they get no bevel. Only controls get bevels.
+ */
 export function Panel({
   className,
   children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      {...props}
-      className={cx(
-        "rounded-lg border border-line bg-bg shadow-[0_1px_2px_rgba(16,18,22,0.04)]",
-        className,
-      )}
-    >
+    <div {...props} className={cx("matte seat-in rounded-none", className)}>
       {children}
     </div>
   );
@@ -113,17 +167,131 @@ export function PanelHeader({
   return (
     <div
       className={cx(
-        "flex flex-wrap items-start justify-between gap-3 border-b border-line px-4 py-3",
+        "scribe flex flex-wrap items-start justify-between gap-3 px-4 py-3",
         className,
       )}
     >
       <div className="min-w-0">
-        <h2 className="text-[13.5px] font-medium text-ink">{title}</h2>
+        <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.11em] text-ink-2">
+          {title}
+        </h2>
         {description && (
-          <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-3">{description}</p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">{description}</p>
         )}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+/**
+ * A stencilled label for sections that are not panels. Mono, letterspaced,
+ * cut into the surface — the way a legend is printed on equipment.
+ */
+export function Legend({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <p
+      className={cx(
+        "engraved font-mono text-[11px] font-medium uppercase tracking-[0.13em]",
+        className,
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+/**
+ * A section whose label lives in the left margin rather than above its
+ * content — the way a heading is set in a technical manual.
+ *
+ * Two things fall out of it that a stacked heading cannot do: the content
+ * column starts at the same x-position on every section, so the page has one
+ * spine instead of a ragged stack; and the label can stay put while a long
+ * section scrolls past it, so you always know what you are looking at. Below
+ * `lg` it folds back to a stacked label, because a 200px margin is most of a
+ * phone.
+ */
+export function MarginSection({
+  legend,
+  note,
+  children,
+  className,
+}: {
+  legend: string;
+  note?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cx(
+        "grid gap-x-10 gap-y-5 lg:grid-cols-[190px_minmax(0,1fr)]",
+        className,
+      )}
+    >
+      <div className="seat-in lg:sticky lg:top-12 lg:self-start lg:pt-1">
+        <Legend>{legend}</Legend>
+        {note && (
+          <p className="mt-3 max-w-[210px] text-[12px] leading-relaxed text-ink-4">
+            {note}
+          </p>
+        )}
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * A full-bleed band of the wordmark at display scale, used as the divider
+ * between major sections instead of another hairline rule.
+ *
+ * It is the one place in the app where the polarity flips: bright metal
+ * ground, dark text struck into it. In a system with no colour, inverting a
+ * whole band is the loudest punctuation available, so it happens once per
+ * page and never twice.
+ */
+export function MarqueeBand({
+  words = ["Tessera", "Pay per call", "x402", "Hedera"],
+  className,
+}: {
+  words?: string[];
+  className?: string;
+}) {
+  const run = (hidden: boolean) => (
+    <div aria-hidden={hidden || undefined} className="flex shrink-0 items-center">
+      {words.map((word) => (
+        <span key={word} className="flex items-center">
+          <span className="struck px-6 text-[clamp(3.25rem,8vw,7.5rem)] font-semibold leading-none tracking-[-0.045em] text-bg">
+            {word}
+          </span>
+          <span aria-hidden="true" className="text-[clamp(1rem,2vw,2rem)] leading-none text-bg/45">
+            ✦
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+
+  return (
+    <div
+      className={cx(
+        "machined-bright brushed relative overflow-hidden border-y border-black/55 py-5",
+        className,
+      )}
+    >
+      <div className="animate-marquee flex w-max items-center">
+        {run(false)}
+        {/* The second run exists only so the wrap is seamless. */}
+        {run(true)}
+      </div>
     </div>
   );
 }
@@ -132,12 +300,32 @@ export function PanelHeader({
 
 type Tone = "neutral" | "accent" | "ok" | "warn" | "bad";
 
+/*
+ * State without hue. Each tone is a different physical treatment, so the
+ * three that matter stay distinguishable in greyscale, under colour-blindness
+ * and on a washed-out projector:
+ *
+ *   ok      dark chip, lamp lit          — settled, verified, delivered
+ *   warn    dark chip, machining hatch   — pending, unverified, open
+ *   bad     inverted bright plate        — failed, refunded, revoked
+ *
+ * The inversion on `bad` is deliberate and is the loudest object available in
+ * a monochrome system; it is spent only on outcomes the user must not miss.
+ */
 const TONE: Record<Tone, string> = {
-  neutral: "border-line-2 bg-bg-sunken text-ink-2",
-  accent: "border-accent-line bg-accent-soft text-accent",
-  ok: "border-ok-line bg-ok-soft text-ok",
-  warn: "border-warn-line bg-warn-soft text-warn",
-  bad: "border-bad-line bg-bad-soft text-bad",
+  neutral: "border-line-2 bg-bg-sunken text-ink-3",
+  accent: "border-line-3 bg-[rgba(255,255,255,0.07)] text-ink",
+  ok: "border-line-3 bg-[rgba(255,255,255,0.055)] text-ink",
+  warn: "hatched border-line-2 bg-bg-sunken text-ink-2",
+  bad: "border-transparent bg-ink text-bg struck font-semibold",
+};
+
+const TONE_LAMP: Record<Tone, "on" | "idle" | "off"> = {
+  neutral: "off",
+  accent: "on",
+  ok: "on",
+  warn: "idle",
+  bad: "off",
 };
 
 export function Badge({
@@ -154,12 +342,18 @@ export function Badge({
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] font-medium leading-5",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-px",
+        "font-mono text-[11px] font-medium uppercase leading-[17px] tracking-[0.07em]",
         TONE[tone],
         className,
       )}
     >
-      {dot && <span className="size-1.5 rounded-full bg-current opacity-80" />}
+      {dot &&
+        (tone === "bad" ? (
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-bg" />
+        ) : (
+          <Lamp state={TONE_LAMP[tone]} />
+        ))}
       {children}
     </span>
   );
@@ -205,7 +399,7 @@ export function Mono({
   return (
     <span
       title={title}
-      className={cx("font-mono text-[12px] tracking-tight text-ink-2", className)}
+      className={cx("font-mono text-[12px] tracking-[-0.01em] text-ink-2", className)}
     >
       {children}
     </span>
@@ -226,12 +420,12 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function SkeletonRows({ rows = 5, className }: { rows?: number; className?: string }) {
   return (
-    <div className={cx("space-y-px", className)}>
+    <div className={cx("divide-y divide-line", className)}>
       {Array.from({ length: rows }).map((_, index) => (
         <div key={index} className="flex items-center gap-4 px-4 py-3">
-          <Skeleton className="h-3.5 w-1/4" />
-          <Skeleton className="h-3.5 w-1/3 opacity-70" />
-          <Skeleton className="ml-auto h-3.5 w-16 opacity-50" />
+          <Skeleton className="h-3 w-1/4" />
+          <Skeleton className="h-3 w-1/3 opacity-70" />
+          <Skeleton className="ml-auto h-3 w-16 opacity-50" />
         </div>
       ))}
     </div>
@@ -246,11 +440,11 @@ export function IndeterminateBar({ className }: { className?: string }) {
     <div
       role="progressbar"
       aria-label="Working"
-      className={cx("bar-indeterminate h-0.5 w-full rounded-full", className)}
+      className={cx("bar-indeterminate h-0.5 w-full", className)}
     >
       <div
-        className="h-full w-1/4 rounded-full bg-accent"
-        style={{ animation: "tg-indeterminate 1.1s var(--ease-in-out-soft) infinite" }}
+        className="h-full w-1/4 bg-ink"
+        style={{ animation: "tg-indeterminate 1.1s var(--ease-mech) infinite" }}
       />
     </div>
   );
@@ -270,8 +464,13 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cx("px-6 py-14 text-center animate-fade-in", className)}>
-      <p className="text-[13.5px] font-medium text-ink">{title}</p>
+    <div className={cx("animate-fade-in px-6 py-14 text-center", className)}>
+      {/* An empty bay in the panel, milled but unoccupied. */}
+      <div
+        aria-hidden="true"
+        className="knurl mx-auto mb-4 h-8 w-16 rounded-none opacity-40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.7)]"
+      />
+      <p className="text-[13px] font-medium text-ink">{title}</p>
       {description && (
         <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] leading-relaxed text-ink-3">
           {description}
@@ -286,7 +485,7 @@ export function EmptyState({
 
 export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="w-full overflow-x-auto scroll-thin">
+    <div className="scroll-thin w-full min-w-0 max-w-full overflow-x-auto">
       <table className={cx("w-full min-w-[640px] border-collapse text-left", className)}>
         {children}
       </table>
@@ -307,7 +506,8 @@ export function Th({
     <th
       scope="col"
       className={cx(
-        "border-b border-line bg-bg-subtle px-4 py-2 text-[11.5px] font-medium uppercase tracking-[0.04em] text-ink-3",
+        "scribe bg-bg-sunken px-4 py-2 font-mono text-[10.5px] font-medium uppercase",
+        "tracking-[0.13em] text-ink-4",
         align === "right" && "text-right",
         className,
       )}
@@ -358,27 +558,42 @@ export function Field({
 }) {
   return (
     <div className={cx("space-y-1.5", className)}>
-      <label htmlFor={htmlFor} className="block text-[12.5px] font-medium text-ink">
+      <label
+        htmlFor={htmlFor}
+        className="block font-mono text-[10.5px] font-medium uppercase tracking-[0.13em] text-ink-3"
+      >
         {label}
       </label>
       {children}
       {error ? (
-        <p className="text-[12px] text-bad">{error}</p>
+        <p className="flex items-start gap-1.5 text-[12px] font-medium text-ink">
+          <span aria-hidden="true" className="mt-px font-mono">
+            ✕
+          </span>
+          {error}
+        </p>
       ) : hint ? (
-        <p className="text-[12px] leading-relaxed text-ink-3">{hint}</p>
+        <p className="text-[12px] leading-relaxed text-ink-4">{hint}</p>
       ) : null}
     </div>
   );
 }
 
+/*
+ * Inputs are wells: material removed from the panel, so text sits *in* the
+ * surface. Focus does not add a coloured ring — it lights the cut, the way a
+ * recess catches light when it is the live one.
+ */
 const CONTROL =
-  "w-full rounded-md border border-line-2 bg-bg px-2.5 py-1.5 text-[13px] text-ink " +
-  "placeholder:text-ink-4 transition-colors duration-150 " +
-  "hover:border-line-3 focus:border-accent focus:outline-none " +
-  "focus:ring-[3px] focus:ring-accent/12 disabled:bg-bg-sunken disabled:text-ink-3";
+  "well w-full rounded-none px-2.5 py-1.5 text-[13px] text-ink placeholder:text-ink-4 " +
+  "transition-[box-shadow,background-color] duration-150 " +
+  "hover:bg-[#0b0b0d] " +
+  "focus:bg-[#0b0b0d] focus:outline-none " +
+  "focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.8),inset_0_0_0_1px_rgba(255,255,255,0.34)] " +
+  "disabled:text-ink-4 disabled:opacity-60";
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={cx(CONTROL, "h-9", className)} />;
+  return <input {...props} className={cx(CONTROL, "h-8.5", className)} />;
 }
 
 export function Textarea({
@@ -388,8 +603,28 @@ export function Textarea({
   return <textarea {...props} className={cx(CONTROL, "min-h-20 resize-y", className)} />;
 }
 
+/*
+ * The native select paints its own raised background, which reads as a bump
+ * on a panel of recessed wells. Stripping the appearance and drawing the
+ * chevron ourselves is the only way to keep it in the same material.
+ */
+const SELECT_CHEVRON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239a9a98' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
+
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cx(CONTROL, "h-9 pr-8", className)} />;
+  return (
+    <select
+      {...props}
+      style={{
+        appearance: "none",
+        backgroundImage: SELECT_CHEVRON,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "right 10px center",
+        ...props.style,
+      }}
+      className={cx(CONTROL, "h-8.5 cursor-pointer pr-8", className)}
+    />
+  );
 }
 
 /* -------------------------------------------------------------- Page shell */
@@ -402,7 +637,12 @@ export function Page({
   className?: string;
 }) {
   return (
-    <div className={cx("mx-auto w-full max-w-[1120px] px-5 py-8 sm:px-8", className)}>
+    <div
+      className={cx(
+        "mx-auto w-full max-w-[1240px] px-6 py-11 sm:px-10 lg:py-16",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -420,21 +660,25 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <header className="mb-6 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
-      <div className="min-w-0">
-        {eyebrow && (
-          <p className="mb-1.5 text-[11.5px] font-medium uppercase tracking-[0.07em] text-ink-3">
-            {eyebrow}
-          </p>
-        )}
-        <h1 className="text-[26px] font-[560] tracking-[-0.02em] text-ink">{title}</h1>
-        {description && (
-          <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-ink-2">
-            {description}
-          </p>
-        )}
+    <header className="animate-seat mb-9">
+      <div className="grid gap-x-10 gap-y-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
+        <div className="min-w-0">
+          {eyebrow && <Legend className="mb-3">{eyebrow}</Legend>}
+          <h1 className="text-[clamp(2.25rem,4.4vw,3.5rem)] font-semibold leading-[0.98] tracking-[-0.038em] text-ink">
+            {title}
+          </h1>
+        </div>
+        <div className="min-w-0 lg:pb-2">
+          {description && (
+            <p className="text-[13px] leading-relaxed text-ink-3">{description}</p>
+          )}
+          {actions && (
+            <div className="mt-4 flex flex-wrap items-center gap-2">{actions}</div>
+          )}
+        </div>
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {/* The seam between the masthead and the body, drawn as you reach it. */}
+      <div aria-hidden="true" className="scribe scribe-in mt-8" />
     </header>
   );
 }
@@ -450,15 +694,25 @@ export function Callout({
   title?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const border: Record<Tone, string> = {
-    neutral: "border-line bg-bg-subtle",
-    accent: "border-accent-line bg-accent-soft",
-    ok: "border-ok-line bg-ok-soft",
-    warn: "border-warn-line bg-warn-soft",
-    bad: "border-bad-line bg-bad-soft",
+  /*
+   * Callouts carry their tone on a thick left edge — a painted stripe on the
+   * side of a chassis. Cautions add machining hatch; the destructive tone
+   * gets a bright edge that reads at a glance across the page.
+   */
+  const edge: Record<Tone, string> = {
+    neutral: "border-l-line-3 bg-bg-sunken",
+    accent: "border-l-ink bg-[rgba(255,255,255,0.045)]",
+    ok: "border-l-ink bg-[rgba(255,255,255,0.035)]",
+    warn: "hatched border-l-ink-3 bg-bg-sunken",
+    bad: "border-l-ink bg-[rgba(255,255,255,0.07)]",
   };
   return (
-    <div className={cx("rounded-md border px-3.5 py-3 text-[12.5px] leading-relaxed", border[tone])}>
+    <div
+      className={cx(
+        "rounded-none border border-line border-l-2 px-3.5 py-2.5 text-[12.5px] leading-relaxed",
+        edge[tone],
+      )}
+    >
       {title && <p className="mb-0.5 font-medium text-ink">{title}</p>}
       <div className="text-ink-2">{children}</div>
     </div>
@@ -476,11 +730,40 @@ export function KeyValue({
     <dl className={cx("divide-y divide-line", className)}>
       {items.map((item) => (
         <div key={item.label} className="flex items-baseline justify-between gap-4 px-4 py-2.5">
-          <dt className="text-[12.5px] text-ink-3">{item.label}</dt>
-          <dd className="min-w-0 text-right text-[13px] text-ink">{item.value}</dd>
+          <dt className="font-mono text-[11px] uppercase tracking-[0.09em] text-ink-4">
+            {item.label}
+          </dt>
+          <dd className="tnum min-w-0 text-right text-[13px] text-ink">{item.value}</dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * A single figure on a faceplate: the number cut large in mono, the legend
+ * stencilled beneath it. Readings are always mono — a human did not write
+ * them, the machine did.
+ */
+export function Readout({
+  label,
+  value,
+  suffix,
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  suffix?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cx("min-w-0 px-4 py-3.5", className)}>
+      <p className="tnum flex items-baseline gap-1 font-mono text-[19px] font-medium tracking-[-0.02em] text-ink">
+        <span className="truncate">{value}</span>
+        {suffix && <span className="text-[12px] font-normal text-ink-4">{suffix}</span>}
+      </p>
+      <Legend className="mt-1.5 text-[10px]">{label}</Legend>
+    </div>
   );
 }
 
@@ -489,11 +772,12 @@ export function VerifiedTick({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 14 14"
-      className={cx("size-3.5 shrink-0 text-ok", className)}
+      className={cx("size-3.5 shrink-0 text-ink", className)}
       role="img"
-      aria-label="Verified seller"
+      aria-label="Passed the seller gate"
     >
-      <circle cx="7" cy="7" r="6.2" fill="currentColor" opacity="0.14" />
+      <circle cx="7" cy="7" r="6.2" fill="currentColor" opacity="0.16" />
+      <circle cx="7" cy="7" r="6.2" fill="none" stroke="currentColor" strokeOpacity="0.4" />
       <path
         d="M4.4 7.2 6.2 9l3.4-3.6"
         fill="none"
@@ -509,17 +793,31 @@ export function VerifiedTick({ className }: { className?: string }) {
 /** Simulated Selfie Check passes must never render as the real thing. */
 export const SIMULATED_CREDENTIAL = "selfie_check_simulated";
 
+/**
+ * Only a credential this app itself obtained from World counts as a Selfie
+ * Check. Everything else — the simulation, seeded demo fixtures, anything
+ * unrecognised — is labelled, because the alternative is a badge claiming a
+ * verification that never happened.
+ *
+ * Written as an allowlist rather than a check for the simulated value on
+ * purpose: a new credential string added later should fail closed and read as
+ * unverified, not silently inherit the real badge.
+ */
+const REAL_CREDENTIALS = new Set(["selfie_check", "orb", "document"]);
+
 export function VerificationBadge({ credential }: { credential: string | null }) {
-  if (credential === SIMULATED_CREDENTIAL) {
+  if (credential && REAL_CREDENTIALS.has(credential)) {
     return (
-      <Badge tone="warn" dot>
-        Selfie Check (simulated)
+      <Badge tone="ok" dot>
+        Selfie Check
       </Badge>
     );
   }
   return (
-    <Badge tone="ok" dot>
-      Selfie Check
+    <Badge tone="warn" dot>
+      {credential === SIMULATED_CREDENTIAL
+        ? "Selfie Check · simulated"
+        : "Selfie Check · demo fixture"}
     </Badge>
   );
 }

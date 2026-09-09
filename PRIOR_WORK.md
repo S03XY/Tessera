@@ -132,11 +132,59 @@ app. `x402` appeared nowhere in the harness.
 Routes may now declare HTTP expectations and be checked without a browser.
 218 of their tests pass, including 23 new ones.
 
+### 5. An agent spending mandate on 1inch Aqua
+
+Three new SwapVM instructions and a router, in a fork of
+[1inch/swap-vm](https://github.com/1inch/swap-vm). Aqua itself is untouched.
+
+An agent that buys API calls should never hold its owner's money. Prefunding an
+agent wallet puts the whole balance at risk of one bad instruction, and clawing
+it back needs the agent's cooperation. Instead the funds stay in the owner's
+wallet as an Aqua position and the agent draws payment just in time, one call at
+a time, under a per call cap, a daily cap and one transaction revocation — all
+enforced by the VM rather than by the agent behaving.
+
+Both cap instructions inspect the settled amount rather than the requested one,
+so the limit binds what the agent actually receives. Storage sits in ERC-7201
+namespaced slots so it cannot collide with upstream.
+
+- A fork of 1inch/swap-vm on branch `tollgate-mandate`, four commits, kept in
+  its own repository because it is a fork of somebody else's tree
+- `forge test --match-contract TollgateMandateDemo -vv` narrates the lifecycle
+  with the balances printed
+
 ### Totals
 
-Six commits, ~2,800 lines, 313 tests (up from 177), lint and typecheck clean.
+Seven commits across three repositories, roughly 3,300 lines. 313 tests in the
+marketplace, 14 in the Aqua fork, 23 added to the Hedera Harness. Lint and
+typecheck clean.
 
 <!-- END EVENT WORK -->
+
+---
+
+## Where this goes next
+
+Named because the Continuity track asks for it, and because the work below is
+already scoped rather than aspirational.
+
+1. **Sellers issue their own bonds.** Today one seller's deposit is a real
+   ERC-1400 bond and the rest are HBAR balances. The issuance toolkit already
+   does the work; it needs an onboarding path so a seller mints their own at
+   listing time rather than an operator doing it for them.
+2. **Holds placed by the marketplace, not by a script.** The dispute flow
+   records a hold reference, and the ERC-1400 hold lifecycle runs today through
+   the toolkit. Moving that behind the claims API is what makes the guarantee
+   automatic instead of demonstrated.
+3. **The mandate wired to the buying agent.** The Aqua instructions exist and are
+   tested; the buyer does not draw through them yet. That connection turns a
+   spending cap the agent respects into one it cannot exceed.
+4. **Compliance controls on the bond.** The token is issuable with KYC grants,
+   freezes and transfer restrictions, all currently off. A marketplace operating
+   under any real regime turns them on.
+5. **Settlement beyond HBAR.** The paywall already offers a menu of independent
+   networks. Adding a stablecoin option is a listing level change, not an
+   architectural one.
 
 ---
 

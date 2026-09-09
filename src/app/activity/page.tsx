@@ -9,6 +9,7 @@ import {
   PageHeader,
   Panel,
   PanelHeader,
+  Readout,
   StatusBadge,
   Table,
   Td,
@@ -30,22 +31,33 @@ export default async function ActivityPage() {
         description="Every quoted, delivered and failed call. Delivered rows carry the Hedera transaction that paid the seller."
       />
 
-      <div className="mb-5 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-4">
-        {[
-          { label: "Calls quoted", value: stats.calls.toLocaleString() },
-          { label: "Delivered", value: stats.settled.toLocaleString() },
-          {
-            label: "Settled volume",
-            value: `${formatAmount(stats.volume)} ℏ`,
-          },
-          { label: "Active services", value: stats.services.toLocaleString() },
-        ].map((item) => (
-          <div key={item.label} className="bg-bg px-4 py-3">
-            <p className="text-[11.5px] uppercase tracking-[0.05em] text-ink-3">{item.label}</p>
-            <p className="tnum mt-1 font-mono text-[17px] text-ink">{item.value}</p>
-          </div>
-        ))}
-      </div>
+      {/*
+        The gauge cluster, same part as the one on the home page. It was a
+        `gap-px` grid over a `bg-line` container with transparent cells, which
+        meant the line colour showed through every cell and turned the whole
+        block into a pale slab instead of four figures separated by hairlines.
+      */}
+      <Panel className="mb-5 overflow-hidden">
+        <dl className="grid grid-cols-2 divide-x divide-y divide-line sm:grid-cols-4 sm:divide-y-0">
+          {[
+            { label: "Calls quoted", value: stats.calls.toLocaleString() },
+            { label: "Delivered", value: stats.settled.toLocaleString() },
+            {
+              label: "Settled volume",
+              value: formatAmount(stats.volume),
+              suffix: "ℏ",
+            },
+            { label: "Active services", value: stats.services.toLocaleString() },
+          ].map((item) => (
+            <Readout
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              suffix={item.suffix}
+            />
+          ))}
+        </dl>
+      </Panel>
 
       <Panel className="overflow-hidden">
         <PanelHeader title="Recent calls" description="Newest first, 50 most recent." />

@@ -185,14 +185,14 @@ describe("executeSubgraphQuery", () => {
 describe("searchSubgraphs", () => {
   const row = {
     id: VALID_ID,
-    displayName: "Uniswap V3",
-    description: "DEX",
+    metadata: { displayName: "Uniswap V3", description: "DEX" },
     currentSignalledTokens: "9000",
     currentVersion: {
       subgraphDeployment: {
         ipfsHash: "Qm...",
         queryFeesAmount: "1234",
-        network: { id: "mainnet" },
+        manifest: { network: "mainnet" },
+        indexerAllocations: [{ id: "alloc-1" }],
       },
     },
   };
@@ -249,7 +249,18 @@ describe("searchSubgraphs", () => {
         jsonResponse({
           data: {
             subgraphs: [
-              { id: VALID_ID, displayName: null, description: null, currentVersion: null },
+              {
+                id: VALID_ID,
+                metadata: null,
+                currentVersion: {
+                  subgraphDeployment: {
+                    ipfsHash: null,
+                    queryFeesAmount: null,
+                    manifest: null,
+                    indexerAllocations: [{ id: "alloc-1" }],
+                  },
+                },
+              },
             ],
           },
         }),
@@ -260,6 +271,34 @@ describe("searchSubgraphs", () => {
     expect(candidate.displayName).toBe("(unnamed)");
     expect(candidate.signalledTokens).toBe("0");
     expect(candidate.network).toBeNull();
+  });
+
+  /**
+   * The gateway answers an unallocated subgraph with "no allocations", so
+   * handing one to the buying agent would send it off to appraise something it
+   * can never buy. Both shapes below mean the same thing: nobody is serving it.
+   */
+  it("drops candidates that no indexer is serving", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_u: string, _i: RequestInit) =>
+        jsonResponse({
+          data: {
+            subgraphs: [
+              { ...row, id: VALID_ID, currentVersion: null },
+              {
+                ...row,
+                currentVersion: {
+                  subgraphDeployment: { ...row.currentVersion.subgraphDeployment, indexerAllocations: [] },
+                },
+              },
+            ],
+          },
+        }),
+      ),
+    );
+
+    expect(await searchSubgraphs("x", 5, KEY)).toHaveLength(0);
   });
 });
 
@@ -521,8 +560,8 @@ describe("floorPriceTinybars", () => {
 
 describe("standardized deployments", () => {
   it("resolves a deployment by slug", () => {
-    const found = standardDeployment("aave-v3-base");
-    expect(found?.subgraphId).toBe("D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9");
+    const found = standardDeployment("moonwell-base");
+    expect(found?.subgraphId).toBe("33ex1ExmYQtwGVwri1AP3oMFPGSce6YbocBP7fWbsBrg");
     expect(found?.schemaFamily).toBe("messari/lending");
   });
 

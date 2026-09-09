@@ -100,7 +100,7 @@ World credentials come from [developer.world.org](https://developer.world.org).
 
 ```bash
 npm run dev     # the HTTP suites need a running gateway
-npm test        # 313 tests
+npm test        # 345 tests
 ```
 
 The suite covers unit logic, The Graph client and the schema appraiser, a live
@@ -244,7 +244,7 @@ commit SHA so they become permanent links.
 | --- | --- |
 | Two or more Graph products composed | Network catalogue subgraph, GraphQL introspection, Subgraph Gateway, and the x402 gateway read as a price oracle — [`src/lib/graph.ts`](src/lib/graph.ts) |
 | Live data from a Graph provider | [`executeSubgraphQuery`](src/lib/graph.ts) through `gateway.thegraph.com` |
-| Standardized schemas | Messari lending v3.1.0, one query document across Ethereum and Base — [`MESSARI_LENDING`](src/lib/graph.ts) |
+| Standardized schemas | Messari lending v3.1.0. One query document answers **Aave on Ethereum and Moonwell on Base** — two different protocols, two chains, no per-chain branching — [`MESSARI_LENDING`](src/lib/graph.ts) |
 | The Graph load-bearing, not decorative | Discovery, schema and delivery all route through it; remove it and the Graph-backed listings cannot be appraised or served |
 | Meaningful AI reasoning | [`src/lib/appraise.ts`](src/lib/appraise.ts) — reads a subgraph schema, matches the question's concepts against it, and **refuses to pay** when nothing fits |
 | Open source | MIT, see [`LICENSE`](LICENSE) |
@@ -260,7 +260,7 @@ direct without buying it.
 | Asset Tokenization Studio used | [`../tollgate-ats`](../tollgate-ats) — issuance toolkit, kept out of this repo because the ATS SDK is 1.4GB |
 | Tokenized asset on testnet | **Tollgate Seller Deposit Bond** (`TGDEP`), ISIN `XFTGDEP00013`, [`0.0.10367762`](https://hashscan.io/testnet/contract/0.0.10367762) |
 | Managed, not just issued | Full dispute lifecycle on chain: issue -> hold -> read -> execute. Final balances seller 175, buyer 25, **marketplace 0** |
-| Read back by this app | [`src/lib/tokenized-deposit.ts`](src/lib/tokenized-deposit.ts) — `balanceOf` over the JSON-RPC relay, no SDK |
+| Read back by this app | [`src/lib/tokenized-deposit.ts`](src/lib/tokenized-deposit.ts) — `balanceOf` over the JSON-RPC relay, no SDK. Surfaced on the seller page at [`/sellers/0.0.7399100`](src/app/sellers/%5Baccount%5D/page.tsx), which reads the bond live rather than trusting our own column |
 
 The bond was issued before the project was renamed, so it carries the earlier
 name, Tollgate. The contract id is the identity that matters.
@@ -299,8 +299,44 @@ work done during ETHOnline 2026.
 | --- | --- |
 | Metering rather than a flat per-request charge | [`src/lib/metering.ts:34`](src/lib/metering.ts#L34), [`src/lib/money.ts:77`](src/lib/money.ts#L77) |
 | Agent discovery — a directory other agents can query | [`src/app/api/services/route.ts:16`](src/app/api/services/route.ts#L16), [`src/lib/repo.ts:110`](src/lib/repo.ts#L110) |
+| On-chain agent identity, HCS-14 | [`src/lib/agent-identity.ts`](src/lib/agent-identity.ts) — Universal Agent IDs derived from canonical public inputs (SHA-384, base58), published for the buyer and every seller through `/api/services`. Derived rather than assigned, so a counterparty can recompute it without this marketplace vouching |
 | Verifiable payment audit trails on HCS | [`src/lib/receipts.ts:50`](src/lib/receipts.ts#L50), [`src/lib/hedera.ts:80`](src/lib/hedera.ts#L80) |
 | Fee-payer / custom settlement path | [`src/lib/x402.ts:40`](src/lib/x402.ts#L40) — fee payer read live from `/supported` |
+
+### 1inch — Build an Aqua App (Continuity)
+
+| Requirement | Implementation |
+| --- | --- |
+| Official Aqua/SwapVM contracts used | A fork of [1inch/swap-vm](https://github.com/1inch/swap-vm) carrying three added instructions and one added router, on branch `tollgate-mandate`. Aqua itself is untouched; the router is constructed with the canonical Aqua registry. Kept in its own repository, like the tokenization toolkit, because it is a fork of somebody else's tree rather than part of this one — see `TOLLGATE.md` there |
+| Modified SwapVM redeployment | Explicitly permitted by the track. `TollgateSwapVMRouter` is the only thing redeployed |
+| Onchain execution of token transfers | In the fork: `forge test --match-contract TollgateMandateDemo -vv` runs the whole mandate lifecycle on a local chain and prints the balances moving — two draws allowed, three refused by the VM |
+| Proper git commit history | Four commits on `tollgate-mandate`, written during the event, no end of event squash |
+| SwapVM load-bearing in the product | [`src/lib/mandate.ts`](src/lib/mandate.ts) — the buying agent reads the mandate before every payment and refuses when it is revoked or the daily budget is gone. The owner revokes on Base; the agent stops spending on Hedera |
+
+**How the two chains relate.** Nothing is bridged, and a draw on Aqua does not
+fund a payment on Hedera. The mandate is consulted as the authority on *whether
+the agent may spend at all*, and Hedera is where settlement happens. That gives
+an owner a kill switch which works without this marketplace's cooperation, and
+it needs no bridge to be true.
+
+**What it does.** An autonomous agent buying API calls should never hold its
+owner's money. Prefunding an agent wallet puts the whole balance at risk of a
+single bad instruction. Instead the funds stay in the owner's wallet as an Aqua
+position and the agent draws payment just in time, one call at a time, bounded
+by three new instructions:
+
+| Instruction | Term it enforces |
+| --- | --- |
+| `MandatePerCallCap` | no single draw may exceed this |
+| `MandateDailyCap` | cumulative draws per UTC day are bounded |
+| `MandateRevocable` | the owner kills the mandate in one transaction |
+
+Both cap instructions run the loop first and inspect the *settled* amount, so
+the limit binds what the agent actually receives rather than what it asked for.
+Storage sits in ERC-7201 namespaced slots so it cannot collide with upstream.
+Taker restriction and allowance decay were already solved upstream by
+`PrivateOrder` and `Decay`, so a mandate program composes those rather than
+reimplementing them.
 
 ### World — Selfie Check
 
@@ -320,7 +356,7 @@ work done during ETHOnline 2026.
 | Disputes refunded from the seller's deposit | [`src/lib/claims.ts:175`](src/lib/claims.ts#L175) |
 | Deterministic auto-adjudication | [`src/lib/claims.ts:143`](src/lib/claims.ts#L143) |
 | Deposit verified on-chain via mirror node | [`src/lib/hedera.ts:160`](src/lib/hedera.ts#L160) |
-| Agent spending caps enforced pre-signature | [`src/lib/agent.ts:213`](src/lib/agent.ts#L213) |
+| Agent spending caps enforced pre-signature | [`src/lib/agent.ts:213`](src/lib/agent.ts#L213), and again on chain via [`src/lib/mandate.ts`](src/lib/mandate.ts) |
 | Payment replay guard | [`src/app/x402/[slug]/route.ts:155`](src/app/x402/%5Bslug%5D/route.ts#L155) |
 | SSRF protection on seller endpoints | [`src/lib/ssrf.ts:76`](src/lib/ssrf.ts#L76) |
 

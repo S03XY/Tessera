@@ -170,14 +170,20 @@ export interface SubgraphCandidate {
 
 interface NetworkSubgraphRow {
   id: string;
-  displayName: string | null;
-  description: string | null;
+  /** Display name and description live under metadata, not on the subgraph. */
+  metadata: { displayName: string | null; description: string | null } | null;
   currentSignalledTokens: string | null;
   currentVersion: {
     subgraphDeployment: {
       ipfsHash: string | null;
       queryFeesAmount: string | null;
-      network: { id: string } | null;
+      manifest: { network: string | null } | null;
+      /**
+       * Empty when no indexer is serving this deployment. The gateway answers
+       * such a subgraph with "no allocations", so a candidate without one is
+       * not a candidate at all — see the filter in searchSubgraphs.
+       */
+      indexerAllocations: Array<{ id: string }> | null;
     } | null;
   } | null;
 }
@@ -188,17 +194,20 @@ const SEARCH_QUERY = `
       first: $first
       orderBy: currentSignalledTokens
       orderDirection: desc
-      where: { active: true, displayName_contains_nocase: $text }
+      where: { active: true, metadata_: { displayName_contains_nocase: $text } }
     ) {
       id
-      displayName
-      description
+      metadata {
+        displayName
+        description
+      }
       currentSignalledTokens
       currentVersion {
         subgraphDeployment {
           ipfsHash
           queryFeesAmount
-          network { id }
+          manifest { network }
+          indexerAllocations(first: 1, where: { status: Active }) { id }
         }
       }
     }
@@ -227,15 +236,23 @@ export async function searchSubgraphs(
     apiKey,
   );
 
-  return (data.subgraphs ?? []).map((row) => ({
-    id: row.id,
-    displayName: row.displayName ?? "(unnamed)",
-    description: row.description,
-    signalledTokens: row.currentSignalledTokens ?? "0",
-    queryFeesAmount: row.currentVersion?.subgraphDeployment?.queryFeesAmount ?? "0",
-    network: row.currentVersion?.subgraphDeployment?.network?.id ?? null,
-    schemaFamily: null,
-  }));
+  return (data.subgraphs ?? [])
+    /**
+     * A subgraph with no active allocation cannot be queried: the gateway
+     * rejects it with "no allocations". Offering one to the buying agent
+     * would send it off to appraise something it can never buy, so it is
+     * filtered here rather than failing later.
+     */
+    .filter((row) => (row.currentVersion?.subgraphDeployment?.indexerAllocations?.length ?? 0) > 0)
+    .map((row) => ({
+      id: row.id,
+      displayName: row.metadata?.displayName ?? "(unnamed)",
+      description: row.metadata?.description ?? null,
+      signalledTokens: row.currentSignalledTokens ?? "0",
+      queryFeesAmount: row.currentVersion?.subgraphDeployment?.queryFeesAmount ?? "0",
+      network: row.currentVersion?.subgraphDeployment?.manifest?.network ?? null,
+      schemaFamily: null,
+    }));
 }
 
 /* ------------------------------------------------------------------ schema */
@@ -404,7 +421,11 @@ export async function readGraphPrice(subgraphId: string): Promise<GraphPrice | n
  * floor price. Configurable because it is a market rate, and stated rather
  * than silently assumed — nothing here pretends to be an oracle.
  */
-export const HBAR_CENTS = Number(process.env.HBAR_PRICE_CENTS ?? "5");
+/** Guarded: a malformed override must not turn every quote into NaN. */
+export const HBAR_CENTS = (() => {
+  const parsed = Number(process.env.HBAR_PRICE_CENTS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
+})();
 
 /** Default margin over cost on resold data: 30%. */
 export const DEFAULT_MARKUP_BPS = 3_000;
@@ -479,10 +500,16 @@ export const MESSARI_LENDING: StandardDeployment[] = [
     schemaVersion: "3.1.0",
   },
   {
-    slug: "aave-v3-base",
-    protocol: "Aave V3",
+    /**
+     * A different protocol on a different chain, answering the same document.
+     * Two Aave deployments would only have shown that one team ships a
+     * consistent subgraph; Moonwell against Aave is the actual claim — that
+     * the schema is a contract between strangers.
+     */
+    slug: "moonwell-base",
+    protocol: "Moonwell",
     chain: "base",
-    subgraphId: "D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9",
+    subgraphId: "33ex1ExmYQtwGVwri1AP3oMFPGSce6YbocBP7fWbsBrg",
     schemaFamily: "messari/lending",
     schemaVersion: "3.1.0",
   },

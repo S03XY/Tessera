@@ -53,7 +53,7 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
         <span className="font-mono text-ink-2">{call.id.slice(0, 8)}</span>
       </nav>
 
-      <header className="animate-fade-up flex flex-wrap items-center gap-2.5">
+      <header className="animate-seat flex flex-wrap items-center gap-2.5">
         <h1 className="text-[24px] font-[560] tracking-[-0.02em] text-ink">Call receipt</h1>
         <StatusBadge status={call.status} />
       </header>
@@ -75,7 +75,7 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+      <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-2 [&>*]:min-w-0">
         <Panel className="h-fit overflow-hidden">
           <PanelHeader title="Payment" />
           <KeyValue
@@ -253,7 +253,7 @@ function HashRow({ label, value }: { label: string; value: string | null }) {
       <p className="mb-1 text-[11.5px] font-medium uppercase tracking-[0.05em] text-ink-3">
         {label}
       </p>
-      <p className="break-all rounded-md border border-line bg-bg-subtle px-2.5 py-2 font-mono text-[11.5px] text-ink-2">
+      <p className="break-all rounded-none border border-line bg-bg-subtle px-2.5 py-2 font-mono text-[11.5px] text-ink-2">
         {value ?? "—"}
       </p>
     </div>

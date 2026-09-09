@@ -49,7 +49,7 @@ export function ServiceSearch({
   }, [value, unit, category, router]);
 
   return (
-    <div className="rounded-lg border border-line bg-bg">
+    <div className="matte rounded-none">
       <div className="flex flex-wrap items-center gap-2 p-2.5">
         <div className="relative min-w-[240px] flex-1">
           <SearchIcon />
@@ -60,9 +60,10 @@ export function ServiceSearch({
             placeholder="Search a capability — “exchange rates”, “weather”, “bitcoin price”"
             aria-label="Search services by capability"
             className={cx(
-              "h-9 w-full rounded-md border border-line-2 bg-bg pl-8 pr-8 text-[13px] text-ink",
-              "placeholder:text-ink-4 transition-colors duration-150",
-              "hover:border-line-3 focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accent/12",
+              "well h-8.5 w-full rounded-none pl-8 pr-8 text-[13px] text-ink",
+              "placeholder:text-ink-4 transition-[box-shadow,background-color] duration-150",
+              "hover:bg-[#0b0b0d] focus:bg-[#0b0b0d] focus:outline-none",
+              "focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.8),inset_0_0_0_1px_rgba(255,255,255,0.34)]",
             )}
           />
           {pending && (
@@ -101,7 +102,7 @@ export function ServiceSearch({
           </Button>
         )}
       </div>
-      {pending && <IndeterminateBar className="rounded-none rounded-b-lg" />}
+      {pending && <IndeterminateBar className="rounded-none" />}
     </div>
   );
 }

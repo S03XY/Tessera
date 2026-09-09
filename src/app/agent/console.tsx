@@ -105,7 +105,7 @@ export function AgentConsole({ canPay }: { canPay: boolean }) {
                   setCapability(preset);
                   void run(preset);
                 }}
-                className="rounded-full border border-line-2 bg-bg px-2.5 py-0.5 text-[12px] text-ink-2 transition-colors hover:border-line-3 hover:text-ink disabled:opacity-50"
+                className="machined brushed rounded-none px-2.5 py-1 text-[12px] text-ink-2 transition-[filter,color] duration-100 hover:brightness-125 hover:text-ink active:translate-y-px disabled:opacity-40"
               >
                 {preset}
               </button>
@@ -135,7 +135,7 @@ export function AgentConsole({ canPay }: { canPay: boolean }) {
 
 function Trace({ result }: { result: RunResult }) {
   return (
-    <div className="space-y-5 animate-fade-up">
+    <div className="space-y-5 animate-seat">
       {result.considered.length > 0 && (
         <Panel className="overflow-hidden">
           <PanelHeader
@@ -217,7 +217,7 @@ function Trace({ result }: { result: RunResult }) {
               ) : undefined
             }
           />
-          <pre className="scroll-thin max-h-80 overflow-auto bg-bg-subtle px-4 py-3 font-mono text-[11.5px] leading-relaxed text-ink-2">
+          <pre className="scroll-thin max-h-80 overflow-auto bg-[rgba(0,0,0,0.28)] px-4 py-3 font-mono text-[11.5px] leading-relaxed text-ink-2">
             {pretty(result.response)}
           </pre>
         </Panel>
