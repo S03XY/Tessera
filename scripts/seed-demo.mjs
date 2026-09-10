@@ -92,6 +92,16 @@ const UNISWAP_POOLS_QUERY = `
     }
   }`;
 
+/*
+ * Published free, so the mixed server is real rather than theoretical.
+ *
+ * Deliberately none of the listings the test suite pins its fixtures to: the
+ * FX trio is asserted on for price ordering and the Hacker News feed is the
+ * per-row metering fixture, so pricing either at zero would change what those
+ * tests measure rather than what the product does.
+ */
+const FREE_TOOLS = ["weather-now", "lending-markets-base", "dex-pools-uniswap-v3"];
+
 const SELLERS = [
   {
     key: "meridian",
@@ -317,7 +327,7 @@ const UNVERIFIED_SELLER = {
 export async function seedDemo(client) {
   await client.query("BEGIN");
   try {
-    const counts = { sellers: 0, services: 0, agents: 0 };
+    const counts = { sellers: 0, services: 0, agents: 0, servers: 0 };
 
     for (const seller of SELLERS) {
       const { rows } = await client.query(
@@ -399,9 +409,10 @@ export async function seedDemo(client) {
 
     await client.query(
       `INSERT INTO agents
-         (label, owner_account, agent_account, per_call_cap, per_day_cap, token_hash)
-       VALUES ($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (token_hash) DO UPDATE SET label = EXCLUDED.label`,
+         (label, owner_account, agent_account, per_call_cap, per_day_cap, token_hash, balance)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (token_hash) DO UPDATE
+         SET label = EXCLUDED.label, balance = EXCLUDED.balance`,
       [
         "Demo Buyer Agent",
         "0.0.7326075",
@@ -409,12 +420,93 @@ export async function seedDemo(client) {
         tinybars(1),
         tinybars(10),
         sha256(DEMO_AGENT_TOKEN),
+        tinybars(2),
       ],
     );
     counts.agents++;
 
+    // The demo agent arrives funded, so the ledger has to say where from.
+    await client.query(
+      `INSERT INTO agent_ledger (agent_id, kind, amount, balance_after, tx, memo)
+       SELECT id, 'deposit', $2::numeric, $2::numeric, 'seed-demo-funding',
+              'seeded demo balance'
+         FROM agents WHERE token_hash = $1
+       ON CONFLICT (tx) WHERE tx IS NOT NULL AND kind = 'deposit' DO NOTHING`,
+      [sha256(DEMO_AGENT_TOKEN), tinybars(2)],
+    );
+
+    /* ------------------------------------------------- group into servers */
+
+    /*
+     * Every listing belongs to an MCP server.
+     *
+     * The product is a marketplace of MCP servers, not of loose endpoints, so a
+     * catalogue containing both would be telling two stories at once. Grouping
+     * each seller's listings under one server keeps the slugs — and therefore
+     * the direct /x402/<slug> URL a wallet-carrying agent uses — exactly as
+     * they were, while everything an agent or a visitor browses is uniformly
+     * "a server, and the tools on it".
+     */
+    const sellersWithTools = await client.query(
+      `SELECT sel.id, sel.display_name
+         FROM sellers sel
+        WHERE sel.verification_status = 'verified'
+          AND EXISTS (SELECT 1 FROM services s WHERE s.seller_id = sel.id)`,
+    );
+
+    for (const seller of sellersWithTools.rows) {
+      const slug = seller.display_name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const server = await client.query(
+        `INSERT INTO mcp_servers (seller_id, slug, name, description, base_url, status)
+         VALUES ($1,$2,$3,$4,$5,'active')
+         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+        [
+          seller.id,
+          slug,
+          seller.display_name,
+          `Tools published by ${seller.display_name}. Some are free; the rest settle per call on Hedera.`,
+          process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000",
+        ],
+      );
+
+      await client.query(
+        `UPDATE services
+            SET mcp_server_id = $2,
+                tool_name = replace(slug, '-', '_')
+          WHERE seller_id = $1 AND mcp_server_id IS NULL`,
+        [seller.id, server.rows[0].id],
+      );
+
+      await client.query(
+        `UPDATE mcp_servers SET tool_count =
+           (SELECT count(*) FROM services WHERE mcp_server_id = $1 AND status = 'active')
+         WHERE id = $1`,
+        [server.rows[0].id],
+      );
+      counts.servers++;
+    }
+
+    /*
+     * A free tier, so the mixed server is real rather than theoretical: an
+     * agent can look around at no cost and pay only for the tools that do the
+     * expensive work.
+     */
+    await client.query(
+      `UPDATE services SET price_amount = 0 WHERE slug = ANY($1::text[])`,
+      [FREE_TOOLS],
+    );
+
     await client.query("COMMIT");
-    return `seeded ${counts.sellers} sellers, ${counts.services} services, ${counts.agents} agent (token: ${DEMO_AGENT_TOKEN})`;
+    return (
+      `seeded ${counts.sellers} sellers, ${counts.servers} MCP servers, ` +
+      `${counts.services} tools (${FREE_TOOLS.length} free), ` +
+      `${counts.agents} agent (token: ${DEMO_AGENT_TOKEN})`
+    );
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Tessera">
+  <!--
+    Favicon: the mark reduced to one flat fill, which is the form it was
+    designed to survive as. Tab strips are light in some browsers and dark in
+    others, so the fill follows the viewer's colour scheme rather than betting
+    on one and disappearing in the other.
+  -->
+  <style>
+    path { fill: #17171a }
+    @media (prefers-color-scheme: dark) { path { fill: #ededec } }
+  </style>
+  <path fill-rule="evenodd" d="M2 2H22L30 10V30H2ZM10 30V16L16 10H22V30Z"/>
+</svg>

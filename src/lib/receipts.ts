@@ -22,7 +22,8 @@ export interface CallReceipt {
   asset: string;
   units: number;
   price_unit: string;
-  payment_tx: string;
+  /** Null for a free tool: there was a delivery, but no payment. */
+  payment_tx: string | null;
   request_hash: string;
   response_hash: string;
 }

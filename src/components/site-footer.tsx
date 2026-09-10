@@ -11,7 +11,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-[1240px] px-6 py-7 sm:px-10">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
           <p className="font-mono text-[10.5px] uppercase tracking-[0.13em] text-ink-4">
-            Tessera · pay-per-call API marketplace
+            Tessera · the MCP marketplace, priced per tool
             <span aria-hidden="true" className="mx-2 text-ink-4">
               /
             </span>

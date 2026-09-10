@@ -2,10 +2,11 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { discoverServices, marketStats } from "@/lib/repo";
 import { formatAmount, PRICE_UNIT_LABEL } from "@/lib/money";
+import { BASE_URL } from "@/lib/config";
+import { HeroPlate } from "@/components/hero-plate";
 import {
   Button,
   EmptyState,
-  Lamp,
   Legend,
   MarginSection,
   MarqueeBand,
@@ -29,6 +30,7 @@ export default function HomePage() {
         <ReadoutStrip />
       </Suspense>
       <div className="mx-auto w-full max-w-[1240px] px-6 sm:px-10">
+        <Wire />
         <Exchange />
         <Stations />
       </div>
@@ -55,43 +57,45 @@ export default function HomePage() {
  */
 function Statement() {
   return (
-    <section className="flex min-h-[min(100vh,860px)] flex-col justify-between border-b border-black/60 px-6 pb-10 pt-14 shadow-[0_1px_0_var(--edge-hi)] sm:px-10 lg:pt-20">
-      <div className="mx-auto w-full max-w-[1240px]">
+    <section className="relative isolate flex min-h-[min(100vh,860px)] flex-col justify-between border-b border-black/60 px-6 pb-10 pt-14 shadow-[0_1px_0_var(--edge-hi)] sm:px-10 lg:pt-20">
+      <HeroPlate />
+
+      <div className="relative z-10 mx-auto w-full max-w-[1240px]">
         <Legend>x402 · Hedera testnet</Legend>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1240px] flex-1 items-center py-14">
-        <h1 className="text-[clamp(3rem,9vw,8.5rem)] font-semibold leading-[0.93] tracking-[-0.046em] text-ink">
-          APIs that bill
+      <div className="relative z-10 mx-auto flex w-full max-w-[1240px] flex-1 items-center py-14">
+        <h1 id="statement-h1" className="text-[clamp(3rem,9vw,8.5rem)] font-semibold leading-[0.93] tracking-[-0.046em] text-ink">
+          Any API.
           <br />
-          by the call,
+          An MCP server.
           <br />
           {/*
             Emphasis by luminance, not hue. Dropping the counter-clause two
             steps down the ink ladder is the only contrast device a monochrome
             system has, and it does the work a coloured span used to do.
           */}
-          <span className="text-ink-4">not by the seat.</span>
+          <span className="text-ink-4">Priced per tool.</span>
         </h1>
       </div>
 
-      <div className="mx-auto w-full max-w-[1240px]">
+      <div className="relative z-10 mx-auto w-full max-w-[1240px]">
         <div aria-hidden="true" className="scribe mb-7" />
         <div className="grid gap-x-12 gap-y-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <p className="max-w-xl text-[15px] leading-relaxed text-ink-2">
-            Sellers publish metered endpoints. Agents discover them over plain HTTP,
-            pay inside the request, and get a response. No signup, no API key, no
-            subscription — the{" "}
-            <span className="font-mono text-[13.5px] text-ink">402</span> status code
-            does the negotiating.
+            Upload an API. We shape it into{" "}
+            <span className="font-mono text-[13.5px] text-ink">MCP</span> tools and host the
+            server. You price each tool on its own — free, paid, or a mix — and agents
+            connect to the address and call it. Free tools need no account at all; paid
+            ones settle on Hedera inside the request.
           </p>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <Link href="/services">
-              <Button variant="primary">Browse services</Button>
+            <Link href="/mcp-servers">
+              <Button variant="primary">Connect over MCP</Button>
             </Link>
-            <Link href="/agent">
-              <Button variant="secondary">Run the buyer agent</Button>
+            <Link href="/onboarding">
+              <Button variant="secondary">Publish your API</Button>
             </Link>
             <Link
               href="/docs/agent-api"
@@ -117,7 +121,7 @@ async function ReadoutStrip() {
   const stats = await marketStats();
 
   const items = [
-    { label: "Active services", value: stats.services.toLocaleString() },
+    { label: "Callable tools", value: stats.services.toLocaleString() },
     { label: "Verified sellers", value: stats.sellers.toLocaleString() },
     { label: "Calls quoted", value: stats.calls.toLocaleString() },
     { label: "Calls delivered", value: stats.settled.toLocaleString() },
@@ -159,6 +163,82 @@ function ReadoutStripSkeleton() {
   );
 }
 
+/* -------------------------------------------------------------------- Wire */
+
+/*
+ * The MCP argument, made concrete before it is made.
+ *
+ * The claim — an agent connects to one address and can buy anything in the
+ * catalogue — is easy to write and easy to disbelieve. So the section leads
+ * with the config block rather than the sentence, and puts the four tools
+ * immediately under it: the entire surface an agent has to learn, at actual
+ * size, next to the thing you paste to get it.
+ */
+const MCP_TOOLS = [
+  { name: "search_services", note: "free" },
+  { name: "describe_service", note: "free" },
+  { name: "call_service", note: "priced per tool" },
+  { name: "get_spend_authority", note: "free" },
+  { name: "get_balance", note: "free" },
+] as const;
+
+function Wire() {
+  return (
+    <MarginSection
+      legend="One connection"
+      note="Add the address once. Tools published afterwards are callable without the client changing."
+      className="pt-28"
+    >
+      {/*
+        min-w-0 on both tracks and on the panel itself: a grid item defaults to
+        min-width:auto, so the monospaced config block below sets the column's
+        width from its longest line and pushes the whole document sideways on a
+        narrow screen. The <pre> scrolls; without this, the page does.
+      */}
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+        <div className="well seat-in-late min-w-0 rounded-none p-1.5">
+          <div className="flex items-center justify-between px-3 py-2.5">
+            <Legend className="text-[10px]">Any MCP client</Legend>
+            <span className="font-mono text-[10px] uppercase tracking-[0.11em] text-ink-4">
+              streamable http
+            </span>
+          </div>
+          <pre className="overflow-x-auto rounded-none bg-black/45 p-4 font-mono text-[12.5px] leading-relaxed text-ink-2 shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]">
+{`{
+  "mcpServers": {
+    "tessera": { "url": "${BASE_URL}/mcp" }
+  }
+}`}
+          </pre>
+        </div>
+
+        <div className="seat-in min-w-0">
+          <Legend className="mb-3">The whole surface</Legend>
+          <ul className="space-y-px">
+            {MCP_TOOLS.map((tool) => (
+              <li
+                key={tool.name}
+                className="flex items-baseline justify-between gap-3 border-b border-line py-2.5 last:border-0"
+              >
+                <span className="truncate font-mono text-[12.5px] text-ink">
+                  {tool.name}
+                </span>
+                <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.09em] text-ink-4">
+                  {tool.note}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-[12.5px] leading-relaxed text-ink-3">
+            Five tools, whatever the catalogue&nbsp;holds. Discovery is a call, not a
+            list, so a thousand tools cost an agent no more context than&nbsp;ten.
+          </p>
+        </div>
+      </div>
+    </MarginSection>
+  );
+}
+
 /* ---------------------------------------------------------------- Exchange */
 
 /*
@@ -166,32 +246,34 @@ function ReadoutStripSkeleton() {
  * so it is shown literally rather than described in four feature cards.
  */
 const EXCHANGE = [
-  { dir: "out", line: "GET /x402/ecb-reference-rates", note: "no credentials" },
-  { dir: "in", line: "402 Payment Required", note: "0.0100 ℏ · pay to 0.0.7399100" },
+  { dir: "out", line: "tools/call  weather_now", note: "free tool · no account" },
+  { dir: "in", line: "200 OK", note: "delivered, nothing charged" },
+  { dir: "out", line: "tools/call  ecb_reference_rates", note: "paid tool" },
+  { dir: "in", line: "402 Payment Required", note: "0.0012 ℏ · pay to the seller" },
   { dir: "out", line: "X-PAYMENT: eyJzaWciOiJ…", note: "signed Hedera transfer" },
-  { dir: "in", line: "200 OK", note: "response + receipt on HCS" },
+  { dir: "in", line: "200 OK", note: "settled + receipt on HCS" },
 ] as const;
 
 function Exchange() {
   return (
     <MarginSection
-      legend="The exchange"
-      note="One round trip, two requests. The agent never held an API key."
+      legend="One session"
+      note="The same server, two tools. Only one of them costs anything, and the agent never held an API key."
       className="pt-28"
     >
       <div className="well seat-in-late rounded-none p-1.5">
         <div className="flex items-center justify-between px-3 py-2.5">
           <Legend className="text-[10px]">Transcript</Legend>
-          <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.11em] text-ink-4">
-            <Lamp state="on" live />
-            live
+          <span className="font-mono text-[10px] uppercase tracking-[0.11em] text-ink-4">
+            example
           </span>
         </div>
 
         <ol className="space-y-px rounded-none bg-black/45 p-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]">
-          {EXCHANGE.map((step) => (
+          {EXCHANGE.map((step, index) => (
             <li
-              key={step.line}
+              // Two steps legitimately read "200 OK", so the line is not a key.
+              key={`${index}-${step.line}`}
               className="flex min-w-0 items-baseline gap-3 px-3 py-3"
             >
               {/*
@@ -227,26 +309,26 @@ function Exchange() {
 const STEPS = [
   {
     n: "01",
-    title: "Agent requests",
-    body: "A plain GET with no credentials attached.",
-    code: "GET /x402/ecb-reference-rates",
+    title: "Upload a spec",
+    body: "An OpenAPI URL is all we need. Nothing of yours has to change.",
+    code: "POST /api/mcp/publish",
   },
   {
     n: "02",
-    title: "Gateway quotes",
-    body: "402 with the price, asset and pay-to account.",
-    code: "402 Payment Required",
+    title: "We shape the tools",
+    body: "Operations become named, argument-flattened tools an agent can choose between.",
+    code: "64 operations → 10 tools",
   },
   {
     n: "03",
-    title: "Agent pays",
-    body: "Signs a Hedera transfer, retries with X-PAYMENT.",
-    code: "X-PAYMENT: <base64>",
+    title: "You price each one",
+    body: "Free, paid, or a mix. There is no restriction either way.",
+    code: "free  ·  0.0009 ℏ / call",
   },
   {
     n: "04",
-    title: "Gateway settles",
-    body: "Blocky402 settles, upstream runs, response returns.",
+    title: "Agents connect and pay",
+    body: "Free tools answer immediately. Paid ones settle to you on Hedera.",
     code: "200 OK  +  receipt",
   },
 ];
@@ -258,7 +340,7 @@ const STEPS = [
  */
 function Stations() {
   return (
-    <MarginSection legend="The payment flow" className="pt-28">
+    <MarginSection legend="From API to paid tools" className="pt-28">
       <ol className="grid gap-x-6 gap-y-9 sm:grid-cols-2 xl:grid-cols-4">
         {STEPS.map((step) => (
           <li key={step.n} className="seat-in min-w-0">
@@ -288,41 +370,37 @@ function Stations() {
 /* --------------------------------------------------------------- Rate card */
 
 async function RateCard() {
-  // per_call only: comparing an atomic per_row price against a per_call price
-  // would rank a cheap-looking row feed above an actually cheaper call.
-  const services = await discoverServices({
-    limit: 6,
-    unit: "per_call",
-    payableOnly: true,
-  });
+  // Ordered by price ascending, so the free tools lead — which is the honest
+  // shape of the catalogue rather than a merchandising decision.
+  const services = await discoverServices({ limit: 7, payableOnly: true });
 
   return (
     <MarginSection
-      legend="Rate card"
-      note="Ranked by price, then by observed success rate — the order the agent uses."
+      legend="The catalogue"
+      note="Free tools first, then cheapest — the order an agent optimising for cost actually sees."
       className="pt-28"
     >
       <Panel className="overflow-hidden">
         <PanelHeader
-          title="Lowest price per call"
+          title="Tools an agent can call today"
           actions={
             <Link href="/services">
               <Button size="sm" variant="ghost">
-                All services →
+                All tools →
               </Button>
             </Link>
           }
         />
         {services.length === 0 ? (
           <EmptyState
-            title="No services listed yet"
-            description="Run npm run db:seed to load the demo sellers, or list one from the seller console."
+            title="No tools published yet"
+            description="Publish an API to turn it into MCP tools, or run npm run db:seed to load the demo servers."
           />
         ) : (
           <Table>
             <thead>
               <tr>
-                <Th>Service</Th>
+                <Th>Tool</Th>
                 <Th>Seller</Th>
                 <Th align="right" className="pr-1.5">
                   Price
@@ -348,13 +426,23 @@ async function RateCard() {
                     {service.seller_name}
                   </Td>
                   <Td align="right" className="whitespace-nowrap pr-1.5">
-                    <span className="tnum font-mono text-[13px] text-ink">
-                      {formatAmount(service.price_amount, service.asset_decimals)}
-                    </span>
-                    <span className="ml-1 font-mono text-[11px] text-ink-3">ℏ</span>
+                    {BigInt(service.price_amount) === 0n ? (
+                      <span className="font-mono text-[11px] uppercase tracking-[0.09em] text-ink">
+                        free
+                      </span>
+                    ) : (
+                      <>
+                        <span className="tnum font-mono text-[13px] text-ink">
+                          {formatAmount(service.price_amount, service.asset_decimals)}
+                        </span>
+                        <span className="ml-1 font-mono text-[11px] text-ink-3">ℏ</span>
+                      </>
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap pl-0 font-mono text-[10.5px] uppercase tracking-[0.07em] text-ink-4">
-                    /{PRICE_UNIT_LABEL[service.price_unit]}
+                    {BigInt(service.price_amount) === 0n
+                      ? ""
+                      : `/${PRICE_UNIT_LABEL[service.price_unit]}`}
                   </Td>
                 </tr>
               ))}

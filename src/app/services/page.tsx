@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { discoverServices, listCategories } from "@/lib/repo";
-import { formatAmount, isPriceUnit, PRICE_UNIT_LABEL } from "@/lib/money";
+import { formatAmount, isFreePrice, isPriceUnit, PRICE_UNIT_LABEL } from "@/lib/money";
 import { MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import {
   Badge,
@@ -21,7 +21,7 @@ import { ServiceSearch } from "./search";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Services" };
+export const metadata = { title: "Tools" };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -43,8 +43,8 @@ export default async function ServicesPage({
     <Page>
       <PageHeader
         eyebrow="Discovery"
-        title="Services"
-        description="Every listing is a live HTTP endpoint behind the x402 gateway. Prices are per metering unit, quoted in HBAR at request time."
+        title="Tools"
+        description="Every tool here belongs to a published MCP server and is callable by any agent. Sellers price each one on its own — free tools need no account; paid ones settle on Hedera at request time."
       />
 
       <Suspense fallback={null}>
@@ -145,13 +145,13 @@ async function Results({
   return (
     <Panel className="overflow-hidden">
       <PanelHeader
-        title={`${services.length} service${services.length === 1 ? "" : "s"}`}
-        description="Sorted by price ascending, then success rate."
+        title={`${services.length} tool${services.length === 1 ? "" : "s"}`}
+        description="Free first, then cheapest — the order an agent optimising for cost sees."
       />
       <Table>
         <thead>
           <tr>
-            <Th>Service</Th>
+            <Th>Tool</Th>
             <Th>Seller</Th>
             <Th>Metering</Th>
             <Th align="right">Success</Th>
@@ -204,13 +204,23 @@ async function Results({
                 )}
               </Td>
               <Td align="right" className="whitespace-nowrap pr-1.5">
-                <span className="tnum font-mono text-[12.5px] text-ink">
-                  {formatAmount(service.price_amount, service.asset_decimals)}
-                </span>
-                <span className="ml-1 font-mono text-[11px] text-ink-3">ℏ</span>
+                {isFreePrice(service.price_amount) ? (
+                  <span className="font-mono text-[11px] uppercase tracking-[0.09em] text-ink">
+                    free
+                  </span>
+                ) : (
+                  <>
+                    <span className="tnum font-mono text-[12.5px] text-ink">
+                      {formatAmount(service.price_amount, service.asset_decimals)}
+                    </span>
+                    <span className="ml-1 font-mono text-[11px] text-ink-3">ℏ</span>
+                  </>
+                )}
               </Td>
               <Td className="whitespace-nowrap pl-0 font-mono text-[10.5px] uppercase tracking-[0.07em] text-ink-4">
-                /{PRICE_UNIT_LABEL[service.price_unit]}
+                {isFreePrice(service.price_amount)
+                  ? ""
+                  : `/${PRICE_UNIT_LABEL[service.price_unit]}`}
               </Td>
             </tr>
           ))}

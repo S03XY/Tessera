@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Page, PageHeader, Panel, PanelHeader, Mono, Callout } from "@/components/ui";
 import { BASE_URL, FACILITATOR_URL, X402_NETWORK, MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import { formatAmount } from "@/lib/money";
+import { describeWorld } from "@/lib/world";
 
 export const metadata = { title: "Docs" };
 
@@ -39,7 +40,7 @@ export default function DocsPage() {
           <ul className="ml-4 list-disc space-y-1.5 marker:text-ink-4">
             <li>
               <strong className="font-medium text-ink">Sellers</strong> pass World
-              ID Selfie Check, post a{" "}
+              ID {describeWorld().credential_label}, post a{" "}
               {formatAmount(MIN_DEPOSIT_TINYBARS)} ℏ refundable deposit, and list
               an endpoint with a price and a metering unit.
             </li>

@@ -64,6 +64,32 @@ export function formatPrice(
   return `${formatAmount(atomic, decimals)} ℏ / ${PRICE_UNIT_LABEL[unit]}`;
 }
 
+/**
+ * Zero is a real price: the seller published that tool free.
+ *
+ * Kept here rather than at each call site because "free" has to render
+ * identically everywhere — a tool shown as `0.0000 ℏ / row` on one screen and
+ * `free` on another reads as a bug in the pricing, which is the one thing a
+ * marketplace cannot afford to look like.
+ */
+export function isFreePrice(atomic: string | bigint): boolean {
+  try {
+    return toAtomic(atomic) === 0n;
+  } catch {
+    return false;
+  }
+}
+
+/** The price as a person reads it: `free`, or `0.0012 ℏ / call`. */
+export function priceLabel(
+  atomic: string | bigint,
+  unit: PriceUnit,
+  decimals = HBAR_DECIMALS,
+): string {
+  if (isFreePrice(atomic)) return "free";
+  return `${formatAmount(atomic, decimals)} ℏ / ${PRICE_UNIT_LABEL[unit]}`;
+}
+
 /** Short symbol for an asset id. HBAR is the native asset `0.0.0`. */
 export function assetSymbol(asset: string): string {
   return asset === HBAR_ASSET ? "ℏ" : asset;

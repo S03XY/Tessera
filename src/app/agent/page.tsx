@@ -2,29 +2,39 @@ import { agentCanPay, agentBuyer, spentToday } from "@/lib/agent";
 import { formatAmount } from "@/lib/money";
 import { queryOne } from "@/lib/db";
 import { hashscanAccount } from "@/lib/config";
+import { bucketFor, quotaStatus } from "@/lib/quota";
+import { credentialLabel } from "@/lib/world-credentials";
 import { Badge, KeyValue, Mono, Page, PageHeader, Panel, PanelHeader } from "@/components/ui";
-import { readMandate, formatMandateUnits, mandateConfigured } from "@/lib/mandate";
 import { AgentConsole } from "./console";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Buyer agent" };
 
 export default async function AgentPage() {
-  const [agent, spent, mandate] = await Promise.all([
+  const [agent, spent] = await Promise.all([
     queryOne<{
+      id: string;
       label: string;
       owner_account: string;
       agent_account: string;
       per_call_cap: string | null;
       per_day_cap: string | null;
       revoked_at: string | null;
+      world_nullifier: string | null;
+      world_credential: string | null;
     }>(
-      `SELECT label, owner_account, agent_account, per_call_cap, per_day_cap, revoked_at
+      `SELECT id, label, owner_account, agent_account, per_call_cap, per_day_cap,
+              revoked_at, world_nullifier, world_credential
          FROM agents ORDER BY created_at LIMIT 1`,
     ),
     spentToday(),
-    readMandate(),
   ]);
+
+  // The free-tool allowance this agent draws from. Keyed to the human behind
+  // it when one has been proven, which is the only key a person cannot cheaply
+  // multiply by registering more agents.
+  const freeBucket = bucketFor(agent, "");
+  const free = await quotaStatus(freeBucket);
 
   const dayCap = agent?.per_day_cap ? BigInt(agent.per_day_cap) : null;
   const remaining = dayCap ? (dayCap > spent ? dayCap - spent : 0n) : null;
@@ -48,90 +58,71 @@ export default async function AgentPage() {
         <div className="space-y-5">
           <Panel
             /*
-             * An armed mandate is the one part on this screen with authority
-             * to move money, so it gets a lit edge — the colourless way to
-             * say "this is energised" without a coloured ring.
+             * The allowance is the one control on this screen that money
+             * cannot lift, so it gets the lit edge: paying more does not raise
+             * it, and neither does registering another agent. Only proving a
+             * person does.
              */
             className={`h-fit overflow-hidden ${
-              mandate && !mandate.revoked
+              free.kind === "human"
                 ? "border-line-3 shadow-[inset_0_1px_0_var(--edge-hi-strong),0_0_0_1px_rgba(255,255,255,0.06)]"
                 : ""
             }`}
           >
             <PanelHeader
-              title="On-chain mandate"
-              description="1inch Aqua SwapVM. Outranks every control below."
+              title="Free-tool allowance"
+              description="What this agent may call for nothing today."
               actions={
-                mandate ? (
-                  <Badge tone={mandate.revoked ? "bad" : "ok"} dot>
-                    {mandate.revoked ? "revoked" : "live"}
-                  </Badge>
-                ) : (
-                  <Badge tone="warn" dot>
-                    {mandateConfigured ? "unreachable" : "not set"}
-                  </Badge>
-                )
+                <Badge tone={free.kind === "human" ? "ok" : "warn"} dot>
+                  {free.label}
+                </Badge>
               }
             />
-            {mandate ? (
-              <>
-                <div className="border-b border-line px-4 py-4">
-                  <p className="tnum font-mono text-[26px] font-medium text-ink">
-                    {formatMandateUnits(mandate.remaining)}
-                    <span className="ml-1.5 text-[14px] text-ink-3">
-                      of {formatMandateUnits(mandate.dailyCap)} left today
-                    </span>
-                  </p>
-                  {/* Remaining allowance as a metal bar seated in a milled slot. */}
-                  <div className="well mt-3 h-2 w-full overflow-hidden rounded-none">
-                    <div
-                      className="machined-bright h-full rounded-none border-0"
-                      style={{
-                        width: `${
-                          mandate.dailyCap > 0n
-                            ? Math.max(
-                                2,
-                                Number((mandate.remaining * 100n) / mandate.dailyCap),
-                              )
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                  <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
-                    The funds stay in the owner&apos;s wallet. The agent draws against
-                    this mandate one call at a time, and the owner can revoke it in a
-                    single transaction — after which this agent stops spending here
-                    too.
-                  </p>
-                </div>
-                <KeyValue
-                  items={[
-                    { label: "Chain", value: <Mono>{mandate.chain}</Mono> },
-                    { label: "Mandate", value: <Mono>#{mandate.mandateId}</Mono> },
-                    {
-                      label: "Router",
-                      value: (
-                        <a
-                          href={mandate.explorerUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-[12px] text-accent underline-offset-4 hover:underline"
-                        >
-                          {mandate.router.slice(0, 10)}…{mandate.router.slice(-6)}
-                        </a>
-                      ),
-                    },
-                  ]}
-                />
-              </>
-            ) : (
-              <p className="px-4 py-4 text-[12.5px] leading-relaxed text-ink-3">
-                {mandateConfigured
-                  ? "A mandate is configured but could not be read. The agent refuses to spend rather than assume permission it cannot verify."
-                  : "No mandate configured, so the caps below are enforced by this application alone. Point MANDATE_ROUTER at a deployed Aqua router to move that guarantee on chain."}
+            <div className="border-b border-line px-4 py-4">
+              <p className="tnum font-mono text-[26px] font-medium text-ink">
+                {Math.max(free.limit - free.used, 0).toLocaleString()}
+                <span className="ml-1.5 text-[14px] text-ink-3">
+                  of {free.limit.toLocaleString()} left today
+                </span>
               </p>
-            )}
+              {/* Remaining allowance as a metal bar seated in a milled slot. */}
+              <div className="well mt-3 h-2 w-full overflow-hidden rounded-none">
+                <div
+                  className="machined-bright h-full rounded-none border-0"
+                  style={{
+                    width: `${
+                      free.limit > 0
+                        ? Math.max(
+                            2,
+                            Math.round(
+                              ((free.limit - Math.min(free.used, free.limit)) / free.limit) * 100,
+                            ),
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+              <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
+                {free.kind === "human"
+                  ? "Proven by a World ID credential, so the allowance belongs to the person rather than the token. Every agent they run shares this one bucket — registering more does not raise it."
+                  : "Registering a second agent would not raise this: the larger allowance is keyed to a World ID nullifier, which is the one identifier a person cannot cheaply multiply. Prove a human at POST /api/agents/verify."}
+              </p>
+            </div>
+            <KeyValue
+              items={[
+                { label: "Tier", value: <Mono>{free.kind}</Mono> },
+                { label: "Used today", value: <Mono>{free.used.toLocaleString()}</Mono> },
+                {
+                  label: "Credential",
+                  value: agent?.world_credential ? (
+                    <Mono>{credentialLabel(agent.world_credential)}</Mono>
+                  ) : (
+                    <span className="text-[12px] text-ink-4">none</span>
+                  ),
+                },
+              ]}
+            />
           </Panel>
 
           <Panel className="h-fit overflow-hidden">
@@ -205,8 +196,8 @@ export default async function AgentPage() {
             />
             <p className="border-t border-line px-4 py-3 text-[12px] leading-relaxed text-ink-3">
               Caps are checked against the live 402 quote and refused before a
-              transfer is signed. These hold because this code behaves; the mandate
-              above holds whether it does or not.
+              transfer is signed, so a refusal never moves money. They bound
+              spending; the allowance above bounds what can be taken for free.
             </p>
           </Panel>
         </div>

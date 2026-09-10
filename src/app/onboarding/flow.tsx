@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
+import { PublishForm } from "./publish";
 import dynamic from "next/dynamic";
 import {
   Badge,
@@ -11,15 +11,16 @@ import {
   Input,
   Panel,
   PanelHeader,
-  Select,
-  Textarea,
   cx,
 } from "@/components/ui";
+import { SIMULATED_CREDENTIAL } from "@/lib/world-credentials";
+
+import { WorldSetupPanel } from "./world-setup";
 
 // IDKit pulls in WASM and touches window; keep it off the server render.
 const SelfieCheckButton = dynamic(
   () => import("./selfie-check").then((m) => m.SelfieCheckButton),
-  { ssr: false, loading: () => <Button disabled>Loading Selfie Check…</Button> },
+  { ssr: false, loading: () => <Button disabled>Loading World ID…</Button> },
 );
 
 interface Status {
@@ -35,12 +36,16 @@ type StepState = "todo" | "active" | "done";
 
 export function OnboardingFlow({
   worldMode,
+  credentialLabel,
+  worldProblem,
   chainConfigured,
   treasury,
   minimumDeposit,
   minimumLabel,
 }: {
   worldMode: "live" | "simulated" | "unavailable";
+  credentialLabel: string;
+  worldProblem: string | null;
   chainConfigured: boolean;
   treasury: string;
   minimumDeposit: string;
@@ -53,6 +58,10 @@ export function OnboardingFlow({
   const [error, setError] = useState<string | null>(null);
 
   const verified = status?.verification_status === "verified";
+  // A simulated pass must never read as a real one, so it is checked against
+  // the stored credential rather than inferred from the current server mode —
+  // a deployment can be switched to live while old simulated rows remain.
+  const simulatedPass = status?.world_credential === SIMULATED_CREDENTIAL;
   const funded = status ? BigInt(status.deposit_amount) >= BigInt(minimumDeposit) : false;
 
   const refresh = useCallback(
@@ -138,31 +147,41 @@ export function OnboardingFlow({
 
       <Step
         index={2}
-        title="Pass World ID Selfie Check"
+        title={`Pass World ID ${credentialLabel}`}
         state={verified ? "done" : accountId.trim() ? "active" : "todo"}
         description="One human, one seller account. The nullifier is stored under a unique constraint, so the same person cannot register twice."
       >
-        {worldMode === "unavailable" ? (
-          <Callout tone="warn" title="World ID is not configured">
-            Set <span className="font-mono">WORLD_APP_ID</span>,{" "}
-            <span className="font-mono">WORLD_RP_ID</span> and{" "}
-            <span className="font-mono">WORLD_RP_SIGNING_KEY</span> in{" "}
-            <span className="font-mono">.env.local</span>. Selfie Check is
-            feature-gated — request access for your app from World before it
-            will work, including in the Sandbox App.
-          </Callout>
+        {worldMode !== "live" && !verified ? (
+          <div className="space-y-4">
+            <Callout tone="warn" title="Not verifying against World yet">
+              {worldProblem ??
+                "World ID is configured, but the seller gate is still recording simulated passes."}{" "}
+              The checks below run against World&apos;s own endpoints, so they
+              say which part of the Developer Portal setup is outstanding.
+            </Callout>
+
+            <WorldSetupPanel />
+
+            {worldMode === "simulated" && (
+              <div className="border-t border-line pt-4">
+                <SelfieCheckButton
+                  accountId={accountId.trim()}
+                  displayName={displayName.trim()}
+                  disabled={!accountId.trim()}
+                  simulated
+                  onVerified={() => refresh()}
+                />
+              </div>
+            )}
+          </div>
         ) : verified ? (
           <Callout
-            tone={status?.world_credential === "selfie_check_simulated" ? "warn" : "ok"}
-            title={
-              status?.world_credential === "selfie_check_simulated"
-                ? "Verified (simulated)"
-                : "Verified"
-            }
+            tone={simulatedPass ? "warn" : "ok"}
+            title={simulatedPass ? "Verified (simulated)" : "Verified"}
           >
-            {status?.world_credential === "selfie_check_simulated"
-              ? "Recorded via a simulated pass, not a real Selfie Check."
-              : "Selfie Check passed. This account is a distinct, live human."}
+            {simulatedPass
+              ? "Recorded via a simulated pass, not a real World ID proof."
+              : `${credentialLabel} passed. This account is a distinct, verified human.`}
           </Callout>
         ) : (
           <SelfieCheckButton
@@ -193,6 +212,7 @@ export function OnboardingFlow({
             treasury={treasury}
             minimumLabel={minimumLabel}
             disabled={!verified}
+            credentialLabel={credentialLabel}
             onDeposited={() => refresh()}
           />
         )}
@@ -200,12 +220,17 @@ export function OnboardingFlow({
 
       <Step
         index={4}
-        title="List a service"
+        title="Publish your API as an MCP server"
         state={funded ? "active" : "todo"}
-        description="Only reachable once both gates above are green. The API rejects a listing from an unverified or underfunded account."
+        description="Paste a specification. We shape it into tools, you price each one free or paid, and agents get a URL. Only reachable once both gates above are green — the API refuses a publish from an unverified or underfunded account."
         last
       >
-        <ListingForm accountId={accountId.trim()} verified={verified} funded={funded} />
+        <PublishForm
+          accountId={accountId.trim()}
+          verified={verified}
+          funded={funded}
+          credentialLabel={credentialLabel}
+        />
       </Step>
     </div>
   );
@@ -280,12 +305,14 @@ function DepositForm({
   treasury,
   minimumLabel,
   disabled,
+  credentialLabel,
   onDeposited,
 }: {
   accountId: string;
   treasury: string;
   minimumLabel: string;
   disabled: boolean;
+  credentialLabel: string;
   onDeposited: () => void;
 }) {
   const [txId, setTxId] = useState("");
@@ -344,165 +371,10 @@ function DepositForm({
         Verify deposit
       </Button>
       {disabled && (
-        <p className="text-[12px] text-ink-3">Pass Selfie Check first.</p>
+        <p className="text-[12px] text-ink-3">Pass World ID {credentialLabel} first.</p>
       )}
     </form>
   );
 }
 
 /* ---------------------------------------------------------- Listing form */
-
-function ListingForm({
-  accountId,
-  verified,
-  funded,
-}: {
-  accountId: string;
-  verified: boolean;
-  funded: boolean;
-}) {
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    category: "general",
-    endpoint_url: "",
-    price_amount: "100000",
-    price_unit: "per_call",
-    keywords: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; message: string; slug?: string } | null>(
-    null,
-  );
-
-  const set = (key: keyof typeof form) => (event: { target: { value: string } }) =>
-    setForm((previous) => ({ ...previous, [key]: event.target.value }));
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setResult(null);
-    try {
-      const response = await fetch("/api/services/create", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          account_id: accountId,
-          name: form.name,
-          description: form.description,
-          category: form.category,
-          endpoint_url: form.endpoint_url,
-          price_amount: form.price_amount,
-          price_unit: form.price_unit,
-          keywords: form.keywords
-            .split(",")
-            .map((keyword) => keyword.trim())
-            .filter(Boolean),
-        }),
-      });
-      const body = await response.json();
-      setResult(
-        response.ok
-          ? { ok: true, message: "Listed and live.", slug: body.service.slug }
-          : { ok: false, message: body.message ?? "Listing failed." },
-      );
-    } catch (err) {
-      setResult({ ok: false, message: err instanceof Error ? err.message : "Failed." });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const blocked = !accountId || !verified || !funded;
-
-  return (
-    <form onSubmit={submit} className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Name" htmlFor="name">
-          <Input id="name" value={form.name} onChange={set("name")} placeholder="Gold Spot Price" />
-        </Field>
-        <Field label="Category" htmlFor="category">
-          <Input id="category" value={form.category} onChange={set("category")} />
-        </Field>
-      </div>
-
-      <Field label="Description" htmlFor="description">
-        <Textarea
-          id="description"
-          value={form.description}
-          onChange={set("description")}
-          placeholder="What the endpoint returns, and how often it refreshes."
-        />
-      </Field>
-
-      <Field
-        label="Endpoint URL"
-        htmlFor="endpoint"
-        hint="Must be a public https URL. Private ranges and metadata addresses are rejected."
-      >
-        <Input
-          id="endpoint"
-          value={form.endpoint_url}
-          onChange={set("endpoint_url")}
-          placeholder="https://api.example.com/gold"
-        />
-      </Field>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Price (tinybars)" htmlFor="price" hint="100000 tinybars = 0.001 ℏ">
-          <Input id="price" value={form.price_amount} onChange={set("price_amount")} />
-        </Field>
-        <Field label="Metering" htmlFor="unit">
-          <Select id="unit" value={form.price_unit} onChange={set("price_unit")}>
-            <option value="per_call">Per call</option>
-            <option value="per_token">Per token</option>
-            <option value="per_row">Per row</option>
-          </Select>
-        </Field>
-      </div>
-
-      <Field
-        label="Discovery keywords"
-        htmlFor="keywords"
-        hint="Comma separated. The synonyms an agent might search for."
-      >
-        <Input
-          id="keywords"
-          value={form.keywords}
-          onChange={set("keywords")}
-          placeholder="gold, xau, precious metals, commodity price"
-        />
-      </Field>
-
-      {result && (
-        <Callout tone={result.ok ? "ok" : "bad"}>
-          {result.message}
-          {result.slug && (
-            <>
-              {" "}
-              <Link
-                href={`/services/${result.slug}`}
-                className="underline underline-offset-4"
-              >
-                View listing
-              </Link>
-            </>
-          )}
-        </Callout>
-      )}
-
-      <Button type="submit" variant="primary" loading={submitting} disabled={blocked}>
-        List service
-      </Button>
-      {blocked && (
-        <p className="text-[12px] text-ink-3">
-          {!accountId
-            ? "Enter a seller account first."
-            : !verified
-              ? "Blocked: this account has not passed Selfie Check."
-              : "Blocked: deposit is below the minimum."}
-        </p>
-      )}
-    </form>
-  );
-}

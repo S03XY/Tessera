@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import "@/lib/runtime";
 
 /**
  * Seller-supplied endpoint URLs are fetched by our server, which makes the

@@ -53,8 +53,89 @@ export const operator = {
 export const chainConfigured = Boolean(operator.accountId && operator.privateKey);
 export const receiptsConfigured = chainConfigured && Boolean(operator.topicId);
 
-/** Minimum deposit a seller must hold to keep listings active (10 ℏ). */
+/**
+ * The account that signs the x402 leg for MCP calls.
+ *
+ * An MCP client has no wallet, so it cannot sign a transfer to a seller. The
+ * marketplace signs on its behalf out of prepaid balances agents have funded,
+ * which makes this account custodial for exactly that float and nothing else —
+ * see `lib/wallet.ts` for the ledger that keeps the custody checkable.
+ *
+ * Defaults to the demo buyer account so a fresh checkout works without a
+ * second funded account, and can be split off in production by setting the
+ * MCP_TREASURY_* variables.
+ */
+export const treasury = {
+  accountId: process.env.MCP_TREASURY_ACCOUNT_ID ?? process.env.AGENT_ACCOUNT_ID ?? "",
+  privateKey: process.env.MCP_TREASURY_KEY ?? process.env.AGENT_PRIVATE_KEY ?? "",
+  keyType: (process.env.MCP_TREASURY_KEY_TYPE ?? process.env.AGENT_KEY_TYPE) as
+    | "der"
+    | "ecdsa"
+    | "ed25519"
+    | undefined,
+};
+
+export const treasuryConfigured = Boolean(treasury.accountId && treasury.privateKey);
+
+/** Tools one MCP server may publish before the catalogue is truncated. */
+export const MCP_MAX_TOOLS = envInt(process.env.MCP_MAX_TOOLS, 40);
+
+/**
+ * Baseline deposit a seller must hold to keep listings active (10 ℏ).
+ *
+ * Also the fallback for any credential we do not recognise, so an unfamiliar
+ * value never lowers the bar by accident.
+ */
 export const MIN_DEPOSIT_TINYBARS = 1_000_000_000n;
+
+/**
+ * The deposit, priced by how strongly the seller proved they are a person.
+ *
+ * The deposit exists to make a bad listing cost the seller something, so what
+ * it really prices is how cheaply this seller could be replaced by a fresh
+ * one. That is exactly what a personhood credential measures: an Orb-verified
+ * seller cannot mint a second identity at all, so less collateral is needed;
+ * a device-level "proof" is one app install, so more is.
+ *
+ * Read the other way round, this is what a thirty-second face check is worth
+ * to a seller in working capital — 15 ℏ they do not have to lock up. That is a
+ * concrete answer to where a low-friction, low-assurance credential earns its
+ * place: not as a gate that decides *whether* you may trade, but as a price
+ * that decides *on what terms*.
+ */
+export const DEPOSIT_BY_CREDENTIAL: Record<string, bigint> = {
+  orb: 500_000_000n,
+  passport: 500_000_000n,
+  secure_document: 500_000_000n,
+
+  selfie_check: 1_000_000_000n,
+  proof_of_human: 1_000_000_000n,
+  document: 1_000_000_000n,
+
+  // One human can hold several devices, so this proves the least and costs
+  // the most. It is still allowed — the point is that it is priced, not banned.
+  device: 2_500_000_000n,
+};
+
+/** What this seller must hold, given the credential they actually proved. */
+export function requiredDeposit(credential: string | null | undefined): bigint {
+  if (!credential) return MIN_DEPOSIT_TINYBARS;
+  return DEPOSIT_BY_CREDENTIAL[credential] ?? MIN_DEPOSIT_TINYBARS;
+}
+
+/**
+ * The same rule as SQL, for queries that filter the catalogue.
+ *
+ * Generated from the map above so the two cannot drift apart. Every value is
+ * one of our own constants and every key one of our own identifiers, so there
+ * is nothing here a caller could influence.
+ */
+export function requiredDepositSql(column = "sel.world_credential"): string {
+  const arms = Object.entries(DEPOSIT_BY_CREDENTIAL)
+    .map(([credential, amount]) => `WHEN '${credential}' THEN ${amount}`)
+    .join(" ");
+  return `CASE ${column} ${arms} ELSE ${MIN_DEPOSIT_TINYBARS} END`;
+}
 
 /** Window during which a buyer may dispute a delivered call. */
 export const DISPUTE_WINDOW_HOURS = 24;
@@ -71,45 +152,14 @@ export function graphMode(): "live" | "unconfigured" {
   return process.env.GRAPH_API_KEY ? "live" : "unconfigured";
 }
 
-
-/**
- * The agent's spending mandate on 1inch Aqua.
- *
- * Aqua exists on Base and Arbitrum mainnet only, with no testnet deployment,
- * so this points wherever the modified SwapVM router was deployed. Left blank,
- * the agent falls back to the per-call cap it enforces itself, and every
- * surface says which of the two is in force.
- */
 /**
  * Environment parsing must never throw at module load. A malformed value here
  * would take down every route in the application, not just the feature it
  * configures — so a bad value degrades to the default and the feature reports
  * itself unconfigured instead.
  */
-function envBigInt(raw: string | undefined, fallback: bigint): bigint {
-  if (raw === undefined || raw.trim() === "") return fallback;
-  try {
-    return BigInt(raw.trim());
-  } catch {
-    return fallback;
-  }
-}
-
 function envInt(raw: string | undefined, fallback: number): number {
   const parsed = Number(raw);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-export const MANDATE = {
-  router: process.env.MANDATE_ROUTER ?? "",
-  owner: process.env.MANDATE_OWNER ?? "",
-  /** The order hash the daily budget is counted against. */
-  orderHash: process.env.MANDATE_ORDER_HASH ?? "",
-  mandateId: envInt(process.env.MANDATE_ID, 7),
-  dailyCap: envBigInt(process.env.MANDATE_DAILY_CAP, 0n),
-  chain: process.env.MANDATE_CHAIN ?? "base",
-  rpcUrl: process.env.MANDATE_RPC_URL ?? "https://mainnet.base.org",
-  explorerBase: process.env.MANDATE_EXPLORER ?? "https://basescan.org",
-  /** Decimals of the token the mandate is denominated in. */
-  decimals: envInt(process.env.MANDATE_DECIMALS, 18),
-};

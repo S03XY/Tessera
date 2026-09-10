@@ -1,5 +1,5 @@
 import { Page, PageHeader, Callout } from "@/components/ui";
-import { worldMode } from "@/lib/world";
+import { describeWorld } from "@/lib/world";
 import { chainConfigured, operator, MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import { formatAmount } from "@/lib/money";
 import { OnboardingFlow } from "./flow";
@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Become a seller" };
 
 export default function OnboardingPage() {
+  const world = describeWorld();
+
   return (
     <Page className="max-w-[860px]">
       <PageHeader
@@ -20,13 +22,15 @@ export default function OnboardingPage() {
         <Callout tone="neutral" title="Why the gates exist">
           Without verification, one person lists fifty services and disappears
           with the payments. Without a deposit, a bad response costs the seller
-          nothing. Selfie Check answers the first; the refundable deposit
-          answers the second.
+          nothing. World ID {world.credential_label} answers the first; the
+          refundable deposit answers the second.
         </Callout>
       </div>
 
       <OnboardingFlow
-        worldMode={worldMode()}
+        worldMode={world.mode}
+        credentialLabel={world.credential_label}
+        worldProblem={world.problem}
         chainConfigured={chainConfigured}
         treasury={operator.accountId || "not configured"}
         minimumDeposit={MIN_DEPOSIT_TINYBARS.toString()}

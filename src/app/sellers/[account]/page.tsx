@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSellerByAccount, listServicesForSeller } from "@/lib/repo";
-import { formatAmount, PRICE_UNIT_LABEL } from "@/lib/money";
+import { formatAmount, isFreePrice, PRICE_UNIT_LABEL } from "@/lib/money";
 import { MIN_DEPOSIT_TINYBARS, hashscanAccount } from "@/lib/config";
 import { readDepositUnits, hashscanToken } from "@/lib/tokenized-deposit";
 import {
@@ -18,6 +18,7 @@ import {
   Th,
   VerificationBadge,
 } from "@/components/ui";
+import { describeWorld } from "@/lib/world";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +96,7 @@ export default async function SellerPage({
       {seller.verification_status !== "verified" && (
         <div className="mt-5">
           <Callout tone="warn" title="Cannot list services">
-            This account has not completed World ID Selfie Check. Verification is
+            This account has not completed World ID {describeWorld().credential_label}. Verification is
             required before any listing goes live, which is what stops the
             marketplace filling with duplicate sellers.
           </Callout>
@@ -153,12 +154,18 @@ export default async function SellerPage({
                       <Mono>{Number(service.calls_ok).toLocaleString()}</Mono>
                     </Td>
                     <Td align="right" className="whitespace-nowrap">
-                      <Mono className="text-ink">
-                        {formatAmount(service.price_amount, service.asset_decimals)} ℏ
-                      </Mono>
-                      <span className="ml-1 text-[11.5px] text-ink-4">
-                        /{PRICE_UNIT_LABEL[service.price_unit]}
-                      </span>
+                      {isFreePrice(service.price_amount) ? (
+                        <Mono className="text-ink">free</Mono>
+                      ) : (
+                        <>
+                          <Mono className="text-ink">
+                            {formatAmount(service.price_amount, service.asset_decimals)} ℏ
+                          </Mono>
+                          <span className="ml-1 text-[11.5px] text-ink-4">
+                            /{PRICE_UNIT_LABEL[service.price_unit]}
+                          </span>
+                        </>
+                      )}
                     </Td>
                   </tr>
                 ))}

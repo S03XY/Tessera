@@ -16,18 +16,24 @@
     "db:migrate": "node scripts/db.mjs migrate",
     "db:seed": "node scripts/db.mjs seed",
     "db:reset": "node scripts/db.mjs reset",
-    "provision": "node scripts/provision.mjs"
+    "provision": "node scripts/provision.mjs",
+    "db:seed:mcp": "node scripts/seed-mcp.mjs",
+    "e2e:mcp": "node scripts/mcp-e2e.mjs",
+    "world:preflight": "node scripts/world-preflight.mjs"
   },
   "dependencies": {
     "@hiero-ledger/sdk": "^2.85.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@worldcoin/idkit": "^4.2.2",
     "@worldcoin/idkit-core": "^4.2.3",
     "@x402/core": "^2.23.0",
     "@x402/hedera": "^2.23.0",
+    "mcp-handler": "^2.1.1",
     "next": "^16.3.3",
     "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

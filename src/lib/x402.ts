@@ -8,6 +8,7 @@ import type {
   VerifyResponse,
 } from "@x402/core/types";
 import { inspectHederaTransaction } from "@x402/hedera";
+import "@/lib/runtime";
 import { FACILITATOR_URL, X402_NETWORK } from "@/lib/config";
 
 /**
@@ -43,7 +44,9 @@ export async function getSupported(force = false): Promise<SupportedResponse> {
     return supportedCache.value;
   }
 
-  const response = await fetchWithTimeout(`${FACILITATOR_URL}/supported`, { method: "GET" });
+  const response = await withReconnect(() =>
+    fetchWithTimeout(`${FACILITATOR_URL}/supported`, { method: "GET" }),
+  );
   if (!response.ok) {
     throw new FacilitatorError(
       `facilitator /supported returned ${response.status}`,
@@ -204,6 +207,32 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   }
 }
 
+/**
+ * Retries a call that could not reach the facilitator at all.
+ *
+ * Only ever used for idempotent calls — see the call sites. A connection that
+ * never completed moved no money, so repeating it cannot double-settle; the
+ * danger would be retrying a request that *did* arrive, which is why this
+ * fires solely on a 503 (our own "unreachable" marker) and never on a real
+ * response from the facilitator, however unfavourable.
+ *
+ * The failure this exists for is a first-connection timeout: on a host whose
+ * IPv6 egress is broken, the opening TCP connection to an unfamiliar peer
+ * fails often enough to turn a working payment into a 503 for one unlucky
+ * buyer, and succeeds immediately afterwards.
+ */
+async function withReconnect<T>(attempt: () => Promise<T>): Promise<T> {
+  try {
+    return await attempt();
+  } catch (err) {
+    if (err instanceof FacilitatorError && err.status === 503) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return attempt();
+    }
+    throw err;
+  }
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetchWithTimeout(`${FACILITATOR_URL}${path}`, {
     method: "POST",
@@ -238,13 +267,24 @@ export async function verifyPayment(
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
-  return post<VerifyResponse>("/verify", {
-    x402Version: X402_VERSION,
-    paymentPayload,
-    paymentRequirements,
-  });
+  // Retried on an unreachable facilitator: verification inspects a signature
+  // and moves nothing, so repeating it is free.
+  return withReconnect(() =>
+    post<VerifyResponse>("/verify", {
+      x402Version: X402_VERSION,
+      paymentPayload,
+      paymentRequirements,
+    }),
+  );
 }
 
+/**
+ * Deliberately not retried.
+ *
+ * A settle request that timed out may still have been received and submitted.
+ * Sending it again could pay the seller twice for one delivery, so a failure
+ * here surfaces to the caller — which refunds — rather than being retried.
+ */
 export async function settlePayment(
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,

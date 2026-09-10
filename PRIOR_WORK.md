@@ -132,32 +132,10 @@ app. `x402` appeared nowhere in the harness.
 Routes may now declare HTTP expectations and be checked without a browser.
 218 of their tests pass, including 23 new ones.
 
-### 5. An agent spending mandate on 1inch Aqua
-
-Three new SwapVM instructions and a router, in a fork of
-[1inch/swap-vm](https://github.com/1inch/swap-vm). Aqua itself is untouched.
-
-An agent that buys API calls should never hold its owner's money. Prefunding an
-agent wallet puts the whole balance at risk of one bad instruction, and clawing
-it back needs the agent's cooperation. Instead the funds stay in the owner's
-wallet as an Aqua position and the agent draws payment just in time, one call at
-a time, under a per call cap, a daily cap and one transaction revocation — all
-enforced by the VM rather than by the agent behaving.
-
-Both cap instructions inspect the settled amount rather than the requested one,
-so the limit binds what the agent actually receives. Storage sits in ERC-7201
-namespaced slots so it cannot collide with upstream.
-
-- A fork of 1inch/swap-vm on branch `tollgate-mandate`, four commits, kept in
-  its own repository because it is a fork of somebody else's tree
-- `forge test --match-contract TollgateMandateDemo -vv` narrates the lifecycle
-  with the balances printed
-
 ### Totals
 
-Seven commits across three repositories, roughly 3,300 lines. 313 tests in the
-marketplace, 14 in the Aqua fork, 23 added to the Hedera Harness. Lint and
-typecheck clean.
+Roughly 3,300 lines across two repositories. 635 tests in the marketplace and
+23 added to the Hedera Harness. Lint and typecheck clean.
 
 <!-- END EVENT WORK -->
 
@@ -176,9 +154,9 @@ already scoped rather than aspirational.
    records a hold reference, and the ERC-1400 hold lifecycle runs today through
    the toolkit. Moving that behind the claims API is what makes the guarantee
    automatic instead of demonstrated.
-3. **The mandate wired to the buying agent.** The Aqua instructions exist and are
-   tested; the buyer does not draw through them yet. That connection turns a
-   spending cap the agent respects into one it cannot exceed.
+3. **Free-tool allowances that a seller sets.** The allowance is a marketplace
+   policy today. A seller who publishes a free tool is the one paying its
+   upstream bill, so the ceiling should ultimately be theirs to choose.
 4. **Compliance controls on the bond.** The token is issuable with KYC grants,
    freezes and transfer restrictions, all currently off. A marketplace operating
    under any real regime turns them on.
@@ -192,12 +170,13 @@ already scoped rather than aspirational.
 
 Named here on purpose. Each is a real limitation, not a rough edge.
 
-1. **The World ID seller gate runs in simulation mode.** World has not enabled
-   the Selfie Check credential for this app — it is feature-gated on their
-   side and must be switched on per-app, including in the Sandbox App. A
-   simulated pass is stored as `selfie_check_simulated`, labelled as simulated
-   everywhere in the UI, and reported by `/api/health` as
-   `world_id: "simulated"`. It is not a Selfie Check. See
+1. **World ID runs in simulation mode until the Developer Portal setup is
+   finished.** Selfie Check is feature-gated by World and must be switched on
+   per-app. The live path is complete and any ungated credential runs it —
+   `WORLD_CREDENTIAL` chooses. Until then a simulated pass is stored as
+   `selfie_check_simulated`, labelled as simulated everywhere in the UI, and
+   reported by `/api/health`. It is not a World ID proof. Run
+   `npm run world:preflight` for the exact state. See
    [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md).
 
 2. **The marketplace never holds call revenue** — payment goes directly from

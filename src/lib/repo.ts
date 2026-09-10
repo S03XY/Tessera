@@ -1,10 +1,30 @@
 import { query, queryOne } from "@/lib/db";
-import { MIN_DEPOSIT_TINYBARS } from "@/lib/config";
+import { requiredDepositSql } from "@/lib/config";
 import type { PriceUnit } from "@/lib/money";
 
 /* -------------------------------------------------------------------- Types */
 
-export type UpstreamKind = "http" | "graph_subgraph";
+export type UpstreamKind = "http" | "graph_subgraph" | "openapi";
+
+/** A published MCP server: one seller's API, exposed as a set of tools. */
+export interface McpServerRow {
+  id: string;
+  seller_id: string;
+  slug: string;
+  name: string;
+  description: string;
+  spec_url: string | null;
+  spec_hash: string | null;
+  spec_version: string | null;
+  base_url: string;
+  auth_mode: "none" | "bearer" | "api_key_header" | "api_key_query";
+  auth_ref: string | null;
+  auth_param: string | null;
+  status: "draft" | "active" | "suspended";
+  tool_count: number;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface SellerRow {
   id: string;
@@ -54,6 +74,17 @@ export interface ServiceRow {
   upstream_schema: string | null;
   upstream_chain: string | null;
 
+  /**
+   * Set when this listing is one tool of a published MCP server. Null for
+   * every listing that predates the MCP layer, which is why nothing here is
+   * required — see db/migrations/0005_mcp_layer.sql.
+   */
+  mcp_server_id: string | null;
+  tool_name: string | null;
+  input_schema: Record<string, unknown> | null;
+  mcp_operation: import("@/lib/openapi").ToolOperation | null;
+  tool_annotations: import("@/lib/openapi").ToolAnnotations | null;
+
   price_amount: string;
   price_unit: PriceUnit;
   asset: string;
@@ -75,6 +106,14 @@ export interface ServiceListing extends ServiceRow {
   seller_credential: string | null;
   seller_deposit: string;
   success_rate: number | null;
+
+  /** Joined from mcp_servers when this listing is a tool. Null otherwise. */
+  mcp_slug: string | null;
+  mcp_base_url: string | null;
+  mcp_auth_mode: McpServerRow["auth_mode"] | null;
+  mcp_auth_ref: string | null;
+  mcp_auth_param: string | null;
+  mcp_status: McpServerRow["status"] | null;
 }
 
 export interface CallRow {
@@ -109,9 +148,16 @@ const LISTING_SELECT = `
          sel.deposit_amount      AS seller_deposit,
          CASE WHEN (s.calls_ok + s.calls_failed) > 0
               THEN s.calls_ok::float / (s.calls_ok + s.calls_failed)
-              ELSE NULL END      AS success_rate
+              ELSE NULL END      AS success_rate,
+         ms.slug                 AS mcp_slug,
+         ms.base_url             AS mcp_base_url,
+         ms.auth_mode            AS mcp_auth_mode,
+         ms.auth_ref             AS mcp_auth_ref,
+         ms.auth_param           AS mcp_auth_param,
+         ms.status               AS mcp_status
     FROM services s
-    JOIN sellers sel ON sel.id = s.seller_id`;
+    JOIN sellers sel ON sel.id = s.seller_id
+    LEFT JOIN mcp_servers ms ON ms.id = s.mcp_server_id`;
 
 export interface DiscoverOptions {
   q?: string;
@@ -127,6 +173,11 @@ export interface DiscoverOptions {
    * never be handed a listing they cannot actually buy.
    */
   payableOnly?: boolean;
+  /**
+   * Internal: set on the widened second pass so it cannot recurse. Callers
+   * never set this.
+   */
+  relaxed?: boolean;
 }
 
 /**
@@ -153,9 +204,11 @@ export async function discoverServices(
   if (!includeInactive) where.push(`s.status = 'active'`);
 
   if (payableOnly) {
-    params.push(MIN_DEPOSIT_TINYBARS.toString());
+    // The threshold is per-seller now, so it is a CASE over their credential
+    // rather than one bound parameter. Generated from the same map the
+    // application uses, so the catalogue and the gateway agree on who is live.
     where.push(
-      `sel.verification_status = 'verified' AND sel.deposit_amount >= $${params.length}::numeric`,
+      `sel.verification_status = 'verified' AND sel.deposit_amount >= ${requiredDepositSql()}::numeric`,
     );
   }
 
@@ -197,7 +250,31 @@ export async function discoverServices(
              s.created_at DESC
     LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
-  return query<ServiceListing>(sql, params);
+  const matches = await query<ServiceListing>(sql, params);
+  if (matches.length > 0 || options.relaxed || !q || !q.trim()) return matches;
+
+  /**
+   * Nothing matched every term. Try matching any of them.
+   *
+   * `websearch_to_tsquery` ANDs its terms, which is right for a person typing
+   * into a search box and wrong for an agent, which describes a capability in
+   * a sentence: "weather forecast alerts" then requires all three words to
+   * appear in one listing and finds nothing, even though a weather API is
+   * sitting in the catalogue.
+   *
+   * The relaxation is a second pass rather than the default so that an exact
+   * match still wins outright — a listing matching every term should never be
+   * ranked alongside one matching a single word.
+   */
+  const terms = q
+    .trim()
+    .split(/\s+/)
+    .map((term) => term.replace(/[^\p{L}\p{N}]+/gu, ""))
+    .filter((term) => term.length > 2);
+
+  if (terms.length < 2) return matches;
+
+  return discoverServices({ ...options, q: terms.join(" or "), relaxed: true });
 }
 
 export async function countServices(options: DiscoverOptions = {}): Promise<number> {
@@ -255,6 +332,58 @@ export async function listServicesForSeller(sellerId: string): Promise<ServiceRo
   return query<ServiceRow>(
     `SELECT * FROM services WHERE seller_id = $1 ORDER BY created_at DESC`,
     [sellerId],
+  );
+}
+
+/* -------------------------------------------------------------- MCP servers */
+
+export async function getMcpServerBySlug(slug: string): Promise<McpServerRow | null> {
+  return queryOne<McpServerRow>(`SELECT * FROM mcp_servers WHERE slug = $1`, [slug]);
+}
+
+export async function getMcpServerById(id: string): Promise<McpServerRow | null> {
+  if (!isUuid(id)) return null;
+  return queryOne<McpServerRow>(`SELECT * FROM mcp_servers WHERE id = $1`, [id]);
+}
+
+export async function listMcpServers(
+  options: { includeInactive?: boolean } = {},
+): Promise<Array<McpServerRow & { seller_name: string; seller_account: string }>> {
+  return query(
+    `SELECT ms.*, sel.display_name AS seller_name, sel.account_id AS seller_account
+       FROM mcp_servers ms
+       JOIN sellers sel ON sel.id = ms.seller_id
+      ${options.includeInactive ? "" : "WHERE ms.status = 'active'"}
+      ORDER BY ms.created_at DESC`,
+  );
+}
+
+export async function listMcpServersForSeller(sellerId: string): Promise<McpServerRow[]> {
+  if (!isUuid(sellerId)) return [];
+  return query<McpServerRow>(
+    `SELECT * FROM mcp_servers WHERE seller_id = $1 ORDER BY created_at DESC`,
+    [sellerId],
+  );
+}
+
+/**
+ * The tools one MCP server publishes.
+ *
+ * Ordered by name so `tools/list` is stable across calls: a client that caches
+ * the catalogue should see a change only when the catalogue actually changed,
+ * not because Postgres returned the same rows in a different order.
+ */
+export async function toolsForMcpServer(
+  serverId: string,
+  options: { includeInactive?: boolean } = {},
+): Promise<ServiceListing[]> {
+  if (!isUuid(serverId)) return [];
+  return query<ServiceListing>(
+    `${LISTING_SELECT}
+      WHERE s.mcp_server_id = $1
+        ${options.includeInactive ? "" : "AND s.status = 'active'"}
+      ORDER BY s.tool_name ASC`,
+    [serverId],
   );
 }
 

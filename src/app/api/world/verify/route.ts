@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import {
+  credentialLabel,
+  describeWorld,
   isHederaAccountId,
   markVerified,
   simulateProof,
@@ -29,9 +31,10 @@ const Body = z.object({
  * Completes seller verification.
  *
  * In `live` mode the IDKit proof is forwarded to World and only their answer
- * is trusted. In `simulated` mode no proof exists, and the seller is recorded
- * with the `selfie_check_simulated` credential so nothing downstream can
- * mistake it for a real Selfie Check pass.
+ * is trusted — including which credential satisfied it, so a weaker proof
+ * cannot be recorded as a stronger one. In `simulated` mode no proof exists,
+ * and the seller is recorded with the `selfie_check_simulated` credential so
+ * nothing downstream can mistake it for a real World ID pass.
  */
 export async function POST(request: NextRequest) {
   let parsed;
@@ -92,8 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: "not_configured",
-          message:
-            "World ID is not configured. Set WORLD_APP_ID, WORLD_RP_ID and WORLD_RP_SIGNING_KEY, or WORLD_SIMULATION=1 for development.",
+          message: `World ID is not configured. ${describeWorld().problem} Set WORLD_SIMULATION=1 for development without World credentials.`,
         },
         { status: 503 },
       );
@@ -111,13 +113,20 @@ export async function POST(request: NextRequest) {
         verified: true,
         simulated: mode === "simulated",
         credential: verified.credential,
+        credential_label: credentialLabel(verified.credential),
+        // Which credential World actually reported, kept distinct from the
+        // one we asked for so the receipt is auditable rather than assumed.
+        identifier: verified.identifier,
         seller,
       },
       { status: 200 },
     );
   } catch (err) {
     if (err instanceof WorldError) {
-      return NextResponse.json({ error: err.code, message: err.message }, { status: err.status });
+      return NextResponse.json(
+        { error: err.code, message: err.message, retryable: err.retryable },
+        { status: err.status },
+      );
     }
     throw err;
   }

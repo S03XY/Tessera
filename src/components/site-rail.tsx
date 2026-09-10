@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useId } from "react";
 import { usePathname } from "next/navigation";
 import { cx, Lamp } from "@/components/ui";
 
@@ -17,12 +18,13 @@ import { cx, Lamp } from "@/components/ui";
  * and the keys keep their material and their numbering.
  */
 const NAV = [
-  { href: "/services", label: "Services", n: "01" },
-  { href: "/sellers", label: "Sellers", n: "02" },
-  { href: "/activity", label: "Activity", n: "03" },
-  { href: "/agent", label: "Agent", n: "04" },
-  { href: "/onboarding", label: "Sell", n: "05" },
-  { href: "/docs", label: "Docs", n: "06" },
+  { href: "/mcp-servers", label: "MCP", n: "01" },
+  { href: "/services", label: "Tools", n: "02" },
+  { href: "/sellers", label: "Sellers", n: "03" },
+  { href: "/activity", label: "Activity", n: "04" },
+  { href: "/agent", label: "Agent", n: "05" },
+  { href: "/onboarding", label: "Sell", n: "06" },
+  { href: "/docs", label: "Docs", n: "07" },
 ];
 
 export function SiteRail() {
@@ -178,42 +180,93 @@ function RailKey({
 }
 
 /**
- * A tessera: the small chamfered token a Roman citizen presented for entry.
- * A milled octagonal blank with a slot cut through it — the slot is both the
- * mosaic tile's kerf and the coin slot the agent pays into. Lit from above
- * like every other part, so the top chamfer is bright and the bottom one
- * falls into shadow.
+ * The Tessera mark: a threshold cut to the shape of the token that opens it.
+ *
+ * The plate is a milled blank with its top-right corner chamfered off. The
+ * passage through it is that same outline at half scale, rotated 180° — so its
+ * chamfer falls on the opposite corner and the void is *keyed* to the plate,
+ * one part in one orientation. That is the product in one shape: a token, and
+ * the only gate it fits. It is also the app's actual architecture, not a
+ * metaphor — the gateway is the single component every call passes through.
+ *
+ * The passage runs clean off the bottom edge rather than closing into a
+ * counter. That is load-bearing, not stylistic: a closed counter fills in and
+ * goes muddy at 16px, which is exactly how the previous mark died. An open
+ * passage keeps two solid 4px legs and a 6px gap at favicon size, so the
+ * silhouette survives being flattened to one flat fill on either polarity.
+ *
+ * Lighting follows the same law as every other part in the app. The plate is
+ * raised, so the gradient carries a hard 1px white rail along its top edge and
+ * a dark lip along its bottom; the 45° chamfer is the brightest face on the
+ * object because it tilts up into the overhead source; and the passage is a
+ * void, so it darkens toward its own top.
  */
 export function TesseraMark({ className }: { className?: string }) {
+  /*
+   * Both the desktop spine and the mobile rail render this mark, so the two
+   * live in the DOM at once. Namespacing the gradient ids keeps the second
+   * instance from referencing the first one's defs.
+   */
+  const uid = useId().replace(/:/g, "");
+
   return (
-    <svg viewBox="0 0 16 16" className={cx("shrink-0", className)} aria-hidden="true">
+    <svg viewBox="0 0 32 32" className={cx("shrink-0", className)} aria-hidden="true">
       <defs>
-        <linearGradient id="tsr-face" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#d8d8d4" />
-          <stop offset="52%" stopColor="#8f8f8c" />
-          <stop offset="100%" stopColor="#4a4a4c" />
+        {/*
+          One gradient does three jobs via doubled stops: a 1px specular rail
+          at the top edge, the body ramp, and a 1px shadow lip at the bottom.
+        */}
+        <linearGradient
+          id={`tsr-face-${uid}`}
+          x1="0"
+          y1="2"
+          x2="0"
+          y2="30"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="0.0357" stopColor="#ffffff" />
+          <stop offset="0.0357" stopColor="#f4f4f1" />
+          <stop offset="0.55" stopColor="#e2e2de" />
+          <stop offset="0.9643" stopColor="#c4c4bf" />
+          <stop offset="0.9643" stopColor="#2e2e31" />
+          <stop offset="1" stopColor="#17171a" />
+        </linearGradient>
+        <linearGradient
+          id={`tsr-void-${uid}`}
+          x1="0"
+          y1="10"
+          x2="0"
+          y2="30"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#060607" />
+          <stop offset="0.6" stopColor="#111114" />
+          <stop offset="1" stopColor="#1c1c20" />
+        </linearGradient>
+        <linearGradient
+          id={`tsr-cham-${uid}`}
+          x1="0"
+          y1="2"
+          x2="0"
+          y2="16"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#eeeeea" />
         </linearGradient>
       </defs>
+
+      {/* The passage, sunk behind the plate. */}
+      <path fill={`url(#tsr-void-${uid})`} d="M10 30V16L16 10H22V30Z" />
+      {/* The plate, with the passage knocked out of it. */}
       <path
-        d="M4.6 1.4h6.8L14.6 4.6v6.8L11.4 14.6H4.6L1.4 11.4V4.6Z"
-        fill="url(#tsr-face)"
+        fill={`url(#tsr-face-${uid})`}
+        fillRule="evenodd"
+        d="M2 2H22L30 10V30H2ZM10 30V16L16 10H22V30Z"
       />
-      <path
-        d="M4.6 1.4h6.8L14.6 4.6"
-        fill="none"
-        stroke="#ffffff"
-        strokeOpacity="0.75"
-        strokeWidth="0.9"
-      />
-      <path
-        d="M1.4 11.4 4.6 14.6h6.8"
-        fill="none"
-        stroke="#000000"
-        strokeOpacity="0.55"
-        strokeWidth="0.9"
-      />
-      <rect x="4.5" y="7.1" width="7" height="1.8" rx="0.4" fill="#0b0b0c" />
-      <rect x="4.5" y="8.5" width="7" height="0.5" rx="0.25" fill="#ffffff" opacity="0.3" />
+      {/* The chamfered face, tilted up into the light. */}
+      <path fill={`url(#tsr-cham-${uid})`} d="M22 2L30 10V16L16 2Z" />
     </svg>
   );
 }

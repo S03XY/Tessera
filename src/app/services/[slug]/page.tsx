@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServiceBySlug } from "@/lib/repo";
 import { query } from "@/lib/db";
-import { formatAmount, PRICE_UNIT_LABEL } from "@/lib/money";
+import { formatAmount, isFreePrice, PRICE_UNIT_LABEL } from "@/lib/money";
 import { BASE_URL, MIN_DEPOSIT_TINYBARS, hashscanAccount } from "@/lib/config";
 import {
   Badge,
@@ -185,14 +185,29 @@ export default async function ServiceDetailPage({
                 Price
               </p>
               <p className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="tnum font-mono text-[24px] font-medium tracking-tight text-ink">
-                  {formatAmount(service.price_amount, service.asset_decimals)}
-                </span>
-                <span className="text-[15px] text-ink-2">ℏ</span>
-                <span className="text-[13px] text-ink-3">
-                  / {PRICE_UNIT_LABEL[service.price_unit]}
-                </span>
+                {isFreePrice(service.price_amount) ? (
+                  <span className="font-mono text-[24px] font-medium tracking-tight text-ink">
+                    free
+                  </span>
+                ) : (
+                  <>
+                    <span className="tnum font-mono text-[24px] font-medium tracking-tight text-ink">
+                      {formatAmount(service.price_amount, service.asset_decimals)}
+                    </span>
+                    <span className="text-[15px] text-ink-2">ℏ</span>
+                    <span className="text-[13px] text-ink-3">
+                      / {PRICE_UNIT_LABEL[service.price_unit]}
+                    </span>
+                  </>
+                )}
               </p>
+              {isFreePrice(service.price_amount) && (
+                <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
+                  The seller published this tool free. An agent can call it with no
+                  account, no token and no balance — it is still recorded and
+                  receipted like any other call.
+                </p>
+              )}
               {service.price_unit !== "per_call" && (
                 <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
                   Metered. The quote is price × the units you request, and the

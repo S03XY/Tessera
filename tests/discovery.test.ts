@@ -109,3 +109,43 @@ describe("lookups", () => {
     if (firstUnverified !== -1) expect(lastVerified).toBeLessThan(firstUnverified);
   });
 });
+
+/**
+ * Natural-language search.
+ *
+ * An agent does not type keywords into a box; it describes what it needs in a
+ * sentence. `websearch_to_tsquery` ANDs its terms, so a three-word capability
+ * description found nothing even when a matching listing existed — the
+ * relaxation below is a second pass, so exact matches still win outright.
+ */
+describe("relaxed matching for agent-shaped queries", () => {
+  it("still prefers listings that match every term", async () => {
+    const strict = await discoverServices({ q: "forex" });
+    expect(strict.length).toBeGreaterThan(0);
+    // Single-term queries never reach the relaxed pass.
+    expect(strict.every((s) => /forex|fx|exchange|currency/i.test(
+      `${s.name} ${s.description} ${s.category} ${s.keywords.join(" ")}`,
+    ))).toBe(true);
+  });
+
+  it("falls back to matching any term when matching all of them finds nothing", async () => {
+    // No listing contains all four words; several contain "forex".
+    const results = await discoverServices({ q: "live forex conversion feed" });
+    expect(results.length).toBeGreaterThan(0);
+  });
+
+  it("does not widen a single-word query", async () => {
+    const results = await discoverServices({ q: "zzzznotathing" });
+    expect(results).toHaveLength(0);
+  });
+
+  it("returns nothing when no term matches anything", async () => {
+    const results = await discoverServices({ q: "zzzznotathing yyyyalsonothing" });
+    expect(results).toHaveLength(0);
+  });
+
+  it("ignores punctuation and very short words when widening", async () => {
+    const results = await discoverServices({ q: "a forex, feed!" });
+    expect(results.length).toBeGreaterThan(0);
+  });
+});

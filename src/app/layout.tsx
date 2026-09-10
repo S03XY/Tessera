@@ -26,11 +26,12 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Tessera — pay-per-call API marketplace on Hedera",
+    default: "Tessera — the MCP marketplace, priced per tool",
     template: "%s · Tessera",
   },
   description:
-    "Sellers list metered APIs. Agents discover them and pay per call over x402 on Hedera. No API keys, no subscriptions.",
+    "Upload an API and we publish it as an MCP server. Price each tool free or paid. " +
+    "Agents connect to one URL and settle paid calls on Hedera over x402.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

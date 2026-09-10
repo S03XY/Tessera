@@ -4,8 +4,9 @@ import { query, queryOne } from "@/lib/db";
 import { getSellerByAccount } from "@/lib/repo";
 import { assertPublicUrl, UnsafeUrlError } from "@/lib/ssrf";
 import { PRICE_UNITS } from "@/lib/money";
-import { MIN_DEPOSIT_TINYBARS } from "@/lib/config";
+import { requiredDeposit } from "@/lib/config";
 import { formatAmount } from "@/lib/money";
+import { credentialSpec } from "@/lib/world";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * Three conditions, checked in this order so the error tells the seller what
  * to fix first:
  *   1. the account is a registered seller
- *   2. World ID Selfie Check has passed
+ *   2. The configured World ID credential has been proven
  *   3. the dispute deposit is at or above the minimum
  *
  * The endpoint URL is validated against the SSRF rules here as well as at
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       {
         error: "not_a_seller",
         message:
-          "This account is not registered. Complete World ID Selfie Check first.",
+          `This account is not registered. Complete World ID ${credentialSpec().label} first.`,
       },
       { status: 403 },
     );
@@ -82,23 +83,28 @@ export async function POST(request: NextRequest) {
       {
         error: "not_verified",
         message:
-          "This account has not passed World ID Selfie Check. Verification is required before listing a service.",
+          `This account has not passed World ID ${credentialSpec().label}. Verification is required before listing a service.`,
       },
       { status: 403 },
     );
   }
 
-  if (BigInt(seller.deposit_amount) < MIN_DEPOSIT_TINYBARS) {
+  // Priced by the credential this seller actually proved: the deposit exists
+  // to make them replaceable-at-a-cost, and that cost is exactly what a
+  // personhood credential measures.
+  const required = requiredDeposit(seller.world_credential);
+  if (BigInt(seller.deposit_amount) < required) {
     return NextResponse.json(
       {
         error: "deposit_too_low",
         message: `A dispute deposit of at least ${formatAmount(
-          MIN_DEPOSIT_TINYBARS,
+          required,
         )} ℏ is required before listing. Currently holding ${formatAmount(
           seller.deposit_amount,
         )} ℏ.`,
-        required: MIN_DEPOSIT_TINYBARS.toString(),
+        required: required.toString(),
         held: seller.deposit_amount,
+        credential: seller.world_credential,
       },
       { status: 403 },
     );

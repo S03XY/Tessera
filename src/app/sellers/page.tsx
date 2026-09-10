@@ -16,6 +16,7 @@ import {
   VerificationBadge,
   VerifiedTick,
 } from "@/components/ui";
+import { describeWorld } from "@/lib/world";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sellers" };
@@ -28,7 +29,7 @@ export default async function SellersPage() {
       <PageHeader
         eyebrow="Supply side"
         title="Sellers"
-        description="Every seller passes World ID Selfie Check and posts a refundable deposit before listing. The deposit is what a successful dispute is paid from."
+        description={`Every seller passes World ID ${describeWorld().credential_label} and posts a refundable deposit before listing. The deposit is what a successful dispute is paid from.`}
       />
 
       <Panel className="overflow-hidden">

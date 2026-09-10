@@ -1,62 +1,161 @@
 import { createHash } from "node:crypto";
 import { signRequest } from "@worldcoin/idkit-core/signing";
 import { query, queryOne, transaction } from "@/lib/db";
+import {
+  CREDENTIALS,
+  DEFAULT_CREDENTIAL,
+  SIMULATED_CREDENTIAL,
+  type CredentialSpec,
+} from "@/lib/world-credentials";
 
 /**
- * World ID Selfie Check.
+ * World ID — the seller sybil gate.
  *
  * The abuse this prevents is concrete: without it, one person registers as
- * fifty sellers, lists fifty cheap services, collects payments and walks. The
+ * fifty sellers, lists fifty cheap tools, collects payments and walks. The
  * nullifier is stored under a UNIQUE constraint, so a second seller account
  * from the same human is rejected by the database rather than by a heuristic.
  *
- * Selfie Check is the right assurance level here — an Orb is disproportionate
- * for "prove you are a distinct person before you can take payments", while a
- * plain wallet signature proves nothing at all.
+ * Which credential does the proving is deliberately configuration, not code.
+ * Selfie Check is the assurance level we want — an Orb is disproportionate for
+ * "prove you are a distinct person before you can take payments", a wallet
+ * signature proves nothing at all — but it is access-gated by World, and an
+ * integration that only works once someone answers an email is an integration
+ * that cannot be demonstrated. So the credential is chosen by WORLD_CREDENTIAL
+ * and every ungated option runs the identical live path: server-signed RP
+ * context, real capture in World App, proof verified by World, real nullifier.
+ * Switching to Selfie Check the day it is enabled is one environment variable.
  */
+
+/* -------------------------------------------------------------- credentials */
+
+export {
+  CREDENTIALS,
+  DEFAULT_CREDENTIAL,
+  REAL_CREDENTIALS,
+  SIMULATED_CREDENTIAL,
+  credentialLabel,
+  type CredentialSpec,
+  type PresetName,
+} from "@/lib/world-credentials";
+
+/* ------------------------------------------------------------ configuration */
+
+/**
+ * An RP signing key is a 32-byte secp256k1 private key, hex encoded, issued by
+ * the Developer Portal when the app is migrated to World ID 4.0. Checking the
+ * shape here rather than at first use turns "verification mysteriously fails"
+ * into "the key you pasted is not a key", which is a different afternoon.
+ */
+const SIGNING_KEY_RE = /^(0x)?[0-9a-fA-F]{64}$/;
+
+/**
+ * The environments World's verify endpoint accepts.
+ *
+ * Taken from the API's own validation error rather than from the reference
+ * page, which lists only `production` and `staging`. `sandbox` is both valid
+ * and required — the Sandbox App guide instructs integrators to set it, and
+ * posting `environment: "sandbox"` is accepted while a typo is rejected with
+ * "environment must be one of the following values: production, staging,
+ * sandbox". Three World sources disagree here; the endpoint is the one that
+ * decides, so it is the one encoded.
+ */
+const ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
+export type WorldEnvironment = (typeof ENVIRONMENTS)[number];
+
+function readEnvironment(): WorldEnvironment {
+  const raw = (process.env.WORLD_ENVIRONMENT ?? "production").trim();
+  return (ENVIRONMENTS as readonly string[]).includes(raw)
+    ? (raw as WorldEnvironment)
+    : "production";
+}
+
+function readCredential(): string {
+  const raw = (process.env.WORLD_CREDENTIAL ?? DEFAULT_CREDENTIAL).trim();
+  return raw in CREDENTIALS ? raw : DEFAULT_CREDENTIAL;
+}
 
 export const world = {
   appId: process.env.WORLD_APP_ID ?? "",
   rpId: process.env.WORLD_RP_ID ?? "",
-  signingKey: process.env.WORLD_RP_SIGNING_KEY ?? "",
+  signingKey: (process.env.WORLD_RP_SIGNING_KEY ?? "").trim(),
   action: process.env.WORLD_ACTION ?? "become-seller",
-  environment: (process.env.WORLD_ENVIRONMENT ?? "sandbox") as
-    | "production"
-    | "staging"
-    | "sandbox",
+  credential: readCredential(),
+  environment: readEnvironment(),
 };
 
-/** True when a real Selfie Check round-trip is possible. */
-export const worldConfigured = Boolean(world.appId && world.rpId && world.signingKey);
+/** The credential this deployment asks for. Always a known one. */
+export function credentialSpec(): CredentialSpec {
+  return CREDENTIALS[world.credential] ?? CREDENTIALS[DEFAULT_CREDENTIAL];
+}
+
+/**
+ * Why the configuration is not usable, or null when it is.
+ *
+ * Returned as a sentence rather than a boolean because every caller — the
+ * health endpoint, the onboarding screen, the preflight script — wants to tell
+ * someone what to go and fix.
+ */
+export function configurationProblem(): string | null {
+  if (!world.appId) return "WORLD_APP_ID is not set.";
+  if (!world.appId.startsWith("app_")) return "WORLD_APP_ID must start with `app_`.";
+  if (!world.rpId) return "WORLD_RP_ID is not set.";
+  if (!world.rpId.startsWith("rp_")) return "WORLD_RP_ID must start with `rp_`.";
+  if (!world.signingKey) return "WORLD_RP_SIGNING_KEY is not set.";
+  if (!SIGNING_KEY_RE.test(world.signingKey)) {
+    return "WORLD_RP_SIGNING_KEY must be a 32-byte hex private key (64 hex characters).";
+  }
+  if (!world.action.trim()) return "WORLD_ACTION is not set.";
+  const rawEnvironment = (process.env.WORLD_ENVIRONMENT ?? "production").trim();
+  if (!(ENVIRONMENTS as readonly string[]).includes(rawEnvironment)) {
+    return `WORLD_ENVIRONMENT must be one of ${ENVIRONMENTS.join(", ")}.`;
+  }
+  return null;
+}
+
+/** True when a real World ID round-trip is possible. */
+export const worldConfigured = configurationProblem() === null;
 
 /**
  * Development simulation.
  *
- * Selfie Check is feature-gated by World, so the real capture flow cannot be
- * exercised until they enable it for the app. This lets the seller gate, the
- * one-human-one-account rule and the demo be built and shown in the meantime.
- *
- * It is deliberately loud rather than convenient:
+ * Kept for the case where no World credentials exist at all — a fresh clone,
+ * CI, a contributor who has not registered an app. It is deliberately loud
+ * rather than convenient:
  *   - the credential is stored as `selfie_check_simulated`, never as a real one
  *   - the UI labels every simulated seller as simulated
  *   - /api/health reports it
  *
- * A simulated pass is NOT a Selfie Check pass and does not satisfy World's
- * requirement to demo through the Sandbox App. Turn it off by removing
- * WORLD_SIMULATION once the real credential is enabled.
+ * A simulated pass is NOT a World ID pass. It loses to a real configuration:
+ * once WORLD_RP_SIGNING_KEY is set the live path takes over even if this flag
+ * is still on, because a deployment that can prove humans should never quietly
+ * keep pretending to.
  */
 export const worldSimulation = process.env.WORLD_SIMULATION === "1";
 
-export const SIMULATED_CREDENTIAL = "selfie_check_simulated";
-export const REAL_CREDENTIAL = "selfie_check";
-
-/** Selfie Check can run either for real, or simulated, or not at all. */
+/** World ID can run either for real, or simulated, or not at all. */
 export type WorldMode = "live" | "simulated" | "unavailable";
 
 export function worldMode(): WorldMode {
   if (worldConfigured) return "live";
   if (worldSimulation && world.appId) return "simulated";
   return "unavailable";
+}
+
+/** Everything a status surface needs, with nothing secret in it. */
+export function describeWorld() {
+  const spec = credentialSpec();
+  return {
+    mode: worldMode(),
+    app_id: world.appId || null,
+    rp_id: world.rpId || null,
+    action: world.action,
+    environment: world.environment,
+    credential: world.credential,
+    credential_label: spec.label,
+    credential_gated: spec.gated,
+    problem: configurationProblem(),
+  };
 }
 
 const VERIFY_BASE = "https://developer.world.org/api/v4/verify";
@@ -66,10 +165,102 @@ export class WorldError extends Error {
     message: string,
     readonly code: string,
     readonly status = 400,
+    /** True when trying again could plausibly succeed without a config change. */
+    readonly retryable = false,
   ) {
     super(message);
     this.name = "WorldError";
   }
+}
+
+/**
+ * What World's failure codes mean, and what the person in front of the screen
+ * should do about them.
+ *
+ * World publishes these codes in the SDK's type definitions but documents
+ * neither their cause nor their remedy, and for a gate whose entire job is
+ * refusing people, "verification failed" is not an answer anyone can act on.
+ * Anything unmapped falls through to the raw detail rather than a placeholder.
+ */
+const FAILURE_GUIDANCE: Record<string, { message: string; retryable?: boolean }> = {
+  app_not_migrated: {
+    message:
+      "This app has not been migrated to World ID 4.0. Open it in the Developer Portal " +
+      "and use the “Enable World ID 4.0” banner, which issues the rp_id and signing key.",
+  },
+  invalid_action: {
+    message:
+      "World does not know this action. Create it in the Developer Portal under the app, " +
+      "with an identifier matching WORLD_ACTION.",
+  },
+  credential_unavailable: {
+    message:
+      "This credential is not enabled for the app. Selfie Check in particular is " +
+      "access-gated by World; either request access or set WORLD_CREDENTIAL to an " +
+      "ungated credential such as orb or proof_of_human.",
+  },
+  world_id_4_not_available: {
+    message: "This World App install does not support World ID 4.0. Update it and try again.",
+    retryable: true,
+  },
+  world_id_3_not_available: {
+    message: "This World App install cannot produce the legacy proof this credential needs.",
+  },
+  invalid_rp_signature: {
+    message:
+      "World rejected our request signature. WORLD_RP_SIGNING_KEY does not match WORLD_RP_ID — " +
+      "they are issued together and must come from the same app.",
+  },
+  unknown_rp: {
+    message: "World does not recognise this rp_id. Check WORLD_RP_ID against the Developer Portal.",
+  },
+  inactive_rp: { message: "This relying party is disabled in the Developer Portal." },
+  rp_signature_expired: {
+    message: "The verification window expired before the check finished. Start it again.",
+    retryable: true,
+  },
+  timestamp_too_old: {
+    message: "The request expired before World saw it. Start the check again.",
+    retryable: true,
+  },
+  timestamp_too_far_in_future: {
+    message: "This server's clock is ahead of World's. Check the system time.",
+  },
+  duplicate_nonce: {
+    message: "That challenge was already spent. Start the check again.",
+    retryable: true,
+  },
+  nullifier_replayed: {
+    message: "This proof has already been used. Start a fresh check.",
+    retryable: true,
+  },
+  max_verifications_reached: {
+    message: "This human has already verified for this action as many times as it allows.",
+  },
+  inclusion_proof_pending: {
+    message: "This World ID is still being included on-chain. Try again in a few minutes.",
+    retryable: true,
+  },
+  inclusion_proof_failed: { message: "World could not build an inclusion proof for this identity." },
+  user_rejected: { message: "The check was declined in World App.", retryable: true },
+  verification_rejected: { message: "World App rejected the verification.", retryable: true },
+  user_presence_failed: { message: "World App could not confirm a person was present.", retryable: true },
+  connection_failed: { message: "World App could not reach World. Check its connection.", retryable: true },
+  timeout: { message: "The check timed out before it was completed.", retryable: true },
+  cancelled: { message: "The check was cancelled.", retryable: true },
+  all_verifications_failed: {
+    message:
+      "Every proof in the response failed verification. Usual causes: an expired challenge, " +
+      "a different action than the one signed, or a proof produced for another app.",
+    retryable: true,
+  },
+};
+
+/** Turns a World failure code into something a human can act on. */
+export function explainFailure(code: string, detail?: string): { message: string; retryable: boolean } {
+  const known = FAILURE_GUIDANCE[code];
+  if (known) return { message: known.message, retryable: known.retryable ?? false };
+  return { message: detail?.trim() || `World reported: ${code}.`, retryable: false };
 }
 
 export interface RpContext {
@@ -84,19 +275,18 @@ export interface RpContext {
  * Builds the signed RP context IDKit needs to open a request.
  *
  * The signature is produced with the RP signing key, which never leaves the
- * server — a browser cannot mint its own verification challenge.
+ * server — a browser cannot mint its own verification challenge. This is the
+ * piece none of the credential documentation mentions, and no request can be
+ * opened without it.
  */
 export function createRpContext(action = world.action): RpContext {
-  if (!worldConfigured) {
-    throw new WorldError(
-      "World ID is not configured. Set WORLD_APP_ID, WORLD_RP_ID and WORLD_RP_SIGNING_KEY.",
-      "not_configured",
-      503,
-    );
-  }
+  const problem = configurationProblem();
+  if (problem) throw new WorldError(`World ID is not configured. ${problem}`, "not_configured", 503);
 
   const signed = signRequest({
-    signingKeyHex: world.signingKey,
+    // signRequest wants the bare hex; a pasted `0x` prefix is otherwise
+    // signed as part of the key and produces a valid-looking wrong signature.
+    signingKeyHex: world.signingKey.replace(/^0x/, ""),
     action,
     ttl: 600,
   });
@@ -115,18 +305,21 @@ interface VerifyApiResult {
   code?: string;
   detail?: string;
   action?: string;
-  results?: Array<{ identifier: string; success: boolean; nullifier: string }>;
+  results?: Array<{
+    identifier: string;
+    success: boolean;
+    nullifier: string;
+    code?: string;
+    detail?: string;
+  }>;
 }
 
-/**
- * Verifies an IDKit proof with World's API and returns the nullifier.
- *
- * The proof is forwarded verbatim — the client's own claim about whether it
- * passed is never trusted, only World's answer.
- */
 export interface VerifiedProof {
   nullifier: string;
-  credential: typeof REAL_CREDENTIAL | typeof SIMULATED_CREDENTIAL;
+  /** The credential we recorded — a key of CREDENTIALS, or the simulated one. */
+  credential: string;
+  /** The identifier World actually reported, kept for the audit trail. */
+  identifier: string;
 }
 
 /**
@@ -140,13 +333,23 @@ export function simulateProof(persona: string): VerifiedProof {
   const digest = createHash("sha256")
     .update(`tollgate-simulated-human:${persona.trim().toLowerCase()}`)
     .digest("hex");
-  return { nullifier: `sim_${digest.slice(0, 40)}`, credential: SIMULATED_CREDENTIAL };
+  return {
+    nullifier: `sim_${digest.slice(0, 40)}`,
+    credential: SIMULATED_CREDENTIAL,
+    identifier: "simulated",
+  };
 }
 
+/**
+ * Verifies an IDKit proof with World's API and returns the nullifier.
+ *
+ * The proof is forwarded verbatim — the client's own claim about whether it
+ * passed is never trusted, only World's answer — and the credential that
+ * satisfied it must be one this deployment actually asked for.
+ */
 export async function verifyProof(idkitResult: unknown): Promise<VerifiedProof> {
-  if (!worldConfigured) {
-    throw new WorldError("World ID is not configured.", "not_configured", 503);
-  }
+  const problem = configurationProblem();
+  if (problem) throw new WorldError(`World ID is not configured. ${problem}`, "not_configured", 503);
 
   let response: Response;
   try {
@@ -162,6 +365,7 @@ export async function verifyProof(idkitResult: unknown): Promise<VerifiedProof> 
       `World ID verify endpoint unreachable: ${err instanceof Error ? err.message : String(err)}`,
       "verifier_unreachable",
       502,
+      true,
     );
   }
 
@@ -169,23 +373,41 @@ export async function verifyProof(idkitResult: unknown): Promise<VerifiedProof> 
   try {
     body = (await response.json()) as VerifyApiResult;
   } catch {
-    throw new WorldError("World ID returned a non-JSON response.", "bad_verifier_response", 502);
+    throw new WorldError("World ID returned a non-JSON response.", "bad_verifier_response", 502, true);
   }
 
   if (!response.ok || !body.success) {
+    const code = body.code ?? String(response.status);
+    const { message, retryable } = explainFailure(code, body.detail);
+    throw new WorldError(message, code, response.status === 404 ? 404 : 400, retryable);
+  }
+
+  const spec = credentialSpec();
+  const accepted = new Set(spec.identifiers);
+  const passes = (body.results ?? []).filter((entry) => entry.success && entry.nullifier);
+
+  if (passes.length === 0) {
     throw new WorldError(
-      body.detail ?? `Verification failed (${body.code ?? response.status}).`,
-      body.code ?? "verification_failed",
-      response.status === 404 ? 404 : 400,
+      "No credential in the proof passed verification.",
+      "no_passing_credential",
+      400,
+      true,
     );
   }
 
-  const passed = body.results?.find((entry) => entry.success && entry.nullifier);
-  if (!passed) {
-    throw new WorldError("No credential in the proof passed verification.", "no_passing_credential");
+  const matched = passes.find((entry) => accepted.has(entry.identifier));
+  if (!matched) {
+    // World verified something, but not what we asked for. Recording it would
+    // put a claim in the database that the proof does not support.
+    throw new WorldError(
+      `This proof is a ${passes.map((p) => p.identifier).join(", ")} credential, but this ` +
+        `marketplace requires ${spec.label}.`,
+      "credential_mismatch",
+      400,
+    );
   }
 
-  return { nullifier: passed.nullifier, credential: REAL_CREDENTIAL };
+  return { nullifier: matched.nullifier, credential: world.credential, identifier: matched.identifier };
 }
 
 /**

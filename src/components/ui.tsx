@@ -1,4 +1,9 @@
 import * as React from "react";
+import {
+  credentialLabel,
+  REAL_CREDENTIALS,
+  SIMULATED_CREDENTIAL,
+} from "@/lib/world-credentials";
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -790,34 +795,29 @@ export function VerifiedTick({ className }: { className?: string }) {
   );
 }
 
-/** Simulated Selfie Check passes must never render as the real thing. */
-export const SIMULATED_CREDENTIAL = "selfie_check_simulated";
-
 /**
- * Only a credential this app itself obtained from World counts as a Selfie
- * Check. Everything else — the simulation, seeded demo fixtures, anything
+ * Only a credential this app itself obtained from World counts as verified.
+ * Everything else — the simulation, seeded demo fixtures, anything
  * unrecognised — is labelled, because the alternative is a badge claiming a
  * verification that never happened.
  *
- * Written as an allowlist rather than a check for the simulated value on
- * purpose: a new credential string added later should fail closed and read as
- * unverified, not silently inherit the real badge.
+ * The allowlist is the credential registry itself, so it fails closed: a
+ * value that is not a credential we can actually request reads as unverified
+ * rather than silently inheriting the real badge. The badge names whichever
+ * credential the seller actually holds — a seller who passed an Orb check
+ * should not be described as having passed Selfie Check.
  */
-const REAL_CREDENTIALS = new Set(["selfie_check", "orb", "document"]);
-
 export function VerificationBadge({ credential }: { credential: string | null }) {
   if (credential && REAL_CREDENTIALS.has(credential)) {
     return (
       <Badge tone="ok" dot>
-        Selfie Check
+        {credentialLabel(credential)}
       </Badge>
     );
   }
   return (
     <Badge tone="warn" dot>
-      {credential === SIMULATED_CREDENTIAL
-        ? "Selfie Check · simulated"
-        : "Selfie Check · demo fixture"}
+      {credential === SIMULATED_CREDENTIAL ? "World ID · simulated" : "World ID · demo fixture"}
     </Badge>
   );
 }

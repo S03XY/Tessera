@@ -78,23 +78,86 @@ npm run dev         # http://localhost:3000
 | `HEDERA_OPERATOR_ID` / `HEDERA_OPERATOR_KEY` | Deposit verification, dispute refunds, HCS receipts |
 | `HEDERA_RECEIPT_TOPIC_ID` | Writing call/refund receipts to a consensus topic |
 | `AGENT_ACCOUNT_ID` / `AGENT_PRIVATE_KEY` | The buyer agent signing and completing real payments |
-| `WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` | World ID Selfie Check |
-| `WORLD_SIMULATION=1` | Stand-in for Selfie Check until World enables the credential |
+| `WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` | World ID verification |
+| `WORLD_CREDENTIAL` | Which credential the seller gate demands (default `selfie_check`) |
+| `WORLD_ENVIRONMENT` | `production`, `staging` or `sandbox` — `sandbox` targets the Sandbox App |
+| `WORLD_SIMULATION=1` | Stand-in when no World credentials are configured at all |
 | `CRON_SECRET` | Guards the receipt-drain cron endpoint |
 
 Testnet accounts come from [portal.hedera.com](https://portal.hedera.com).
 World credentials come from [developer.world.org](https://developer.world.org).
 
-> **Selfie Check is feature-gated.** It must be enabled for your app by World
-> before it works — including in the Sandbox App. Request access through your
-> World point of contact before relying on it.
->
-> Until then, set `WORLD_SIMULATION=1` to record clearly-labelled simulated
-> passes so the seller gate and the demo still work. A simulated pass stores
-> the credential as `selfie_check_simulated`, is labelled as simulated
+#### Setting up World ID
+
+Four things must be true before a real capture works. Check all of them at
+once, without a phone and without moving the signing key anywhere:
+
+```bash
+npm run world:preflight
+```
+
+The same verdicts appear in the app itself, on **/onboarding**, whenever the
+gate is not live — so setup never requires terminal access. Both read
+`GET /api/world/status`, which probes World's own endpoints and returns only
+pass/fail. The signing key stays in `.env.local` and is never returned.
+
+1. **The app is migrated to World ID 4.0.** Use the *Enable World ID 4.0*
+   banner in the Developer Portal. This is the step that issues `WORLD_RP_ID`
+   **and** `WORLD_RP_SIGNING_KEY` — the key is shown once. Without it the v4
+   verify endpoint answers `app_not_migrated` to every proof.
+2. **The action exists.** `WORLD_ACTION` must match an Incognito Action
+   created under the app, or World answers `invalid_action`.
+3. **The credential is available to the app.** Selfie Check is access-gated
+   and must be switched on by World; the other credentials are not. Set
+   `WORLD_CREDENTIAL` accordingly — every option runs the identical live path
+   (server-signed RP context, capture in World App, proof verified by World,
+   real nullifier), so only the assurance level changes.
+4. **`WORLD_RP_SIGNING_KEY` is set.** This single variable is what separates
+   live mode from simulation. A valid configuration always wins: the live path
+   takes over even if `WORLD_SIMULATION=1` is still present, because a
+   deployment that can prove humans should never quietly keep pretending to.
+
+#### What the credential actually buys
+
+World ID is not a door here, it is a price. A low-assurance credential earns
+its place by being *proportionate*, so it is used twice, for two risks:
+
+**Free-tool allowance (abuse prevention).** A free tool takes no payment and
+needs no token, so nothing else limits it — the seller pays their upstream bill
+for whoever finds the URL. The allowance is therefore keyed to the scarcest
+identifier available: a nullifier.
+
+| Caller | Free calls / day | Keyed to |
+| --- | --- | --- |
+| Anonymous | 25 | coarse hash of origin |
+| Registered agent | 100 | agent id |
+| Verified human | 2,500 | **nullifier** |
+
+Registering a second agent does not double anything: every agent of one person
+draws from that person's single bucket. Demanding an Orb to use a *free* tool
+would be friction far out of proportion to the risk — the downside of a wrong
+grant is some upstream API calls, not money — which is exactly the case for a
+low-friction credential. Tune with `FREE_LIMIT_ANONYMOUS`, `FREE_LIMIT_AGENT`,
+`FREE_LIMIT_HUMAN`.
+
+**Dispute deposit (risk pricing).** The deposit makes a bad listing cost the
+seller something, so what it prices is how cheaply that seller could be
+replaced by a fresh one — which is what a personhood credential measures.
+
+| Credential | Deposit |
+| --- | --- |
+| Orb, Passport, Secure Document | 5 ℏ |
+| Selfie Check, Proof of Human, Document | 10 ℏ |
+| Device | 25 ℏ |
+
+Read the other way round: a thirty-second face check is worth 15 ℏ of working
+capital a seller does not have to lock up, and 2,400 free calls a day.
+
+> `WORLD_SIMULATION=1` records clearly-labelled simulated passes so the seller
+> gate and the demo work before any of the above is done. A simulated pass
+> stores the credential as `selfie_check_simulated`, is labelled as simulated
 > everywhere in the UI, and is reported by `/api/health` as
-> `world_id: "simulated"`. **It is not a Selfie Check** and does not satisfy
-> World's requirement to demo through the Sandbox App.
+> `world_id: "simulated"`. **It is not a World ID proof.**
 
 ### 5. Tests
 
@@ -303,50 +366,18 @@ work done during ETHOnline 2026.
 | Verifiable payment audit trails on HCS | [`src/lib/receipts.ts:50`](src/lib/receipts.ts#L50), [`src/lib/hedera.ts:80`](src/lib/hedera.ts#L80) |
 | Fee-payer / custom settlement path | [`src/lib/x402.ts:40`](src/lib/x402.ts#L40) — fee payer read live from `/supported` |
 
-### 1inch — Build an Aqua App (Continuity)
-
-| Requirement | Implementation |
-| --- | --- |
-| Official Aqua/SwapVM contracts used | A fork of [1inch/swap-vm](https://github.com/1inch/swap-vm) carrying three added instructions and one added router, on branch `tollgate-mandate`. Aqua itself is untouched; the router is constructed with the canonical Aqua registry. Kept in its own repository, like the tokenization toolkit, because it is a fork of somebody else's tree rather than part of this one — see `TOLLGATE.md` there |
-| Modified SwapVM redeployment | Explicitly permitted by the track. `TollgateSwapVMRouter` is the only thing redeployed |
-| Onchain execution of token transfers | In the fork: `forge test --match-contract TollgateMandateDemo -vv` runs the whole mandate lifecycle on a local chain and prints the balances moving — two draws allowed, three refused by the VM |
-| Proper git commit history | Four commits on `tollgate-mandate`, written during the event, no end of event squash |
-| SwapVM load-bearing in the product | [`src/lib/mandate.ts`](src/lib/mandate.ts) — the buying agent reads the mandate before every payment and refuses when it is revoked or the daily budget is gone. The owner revokes on Base; the agent stops spending on Hedera |
-
-**How the two chains relate.** Nothing is bridged, and a draw on Aqua does not
-fund a payment on Hedera. The mandate is consulted as the authority on *whether
-the agent may spend at all*, and Hedera is where settlement happens. That gives
-an owner a kill switch which works without this marketplace's cooperation, and
-it needs no bridge to be true.
-
-**What it does.** An autonomous agent buying API calls should never hold its
-owner's money. Prefunding an agent wallet puts the whole balance at risk of a
-single bad instruction. Instead the funds stay in the owner's wallet as an Aqua
-position and the agent draws payment just in time, one call at a time, bounded
-by three new instructions:
-
-| Instruction | Term it enforces |
-| --- | --- |
-| `MandatePerCallCap` | no single draw may exceed this |
-| `MandateDailyCap` | cumulative draws per UTC day are bounded |
-| `MandateRevocable` | the owner kills the mandate in one transaction |
-
-Both cap instructions run the loop first and inspect the *settled* amount, so
-the limit binds what the agent actually receives rather than what it asked for.
-Storage sits in ERC-7201 namespaced slots so it cannot collide with upstream.
-Taker restriction and allowance decay were already solved upstream by
-`PrivateOrder` and `Decay`, so a mandate program composes those rather than
-reimplementing them.
-
 ### World — Selfie Check
 
 | Requirement | Implementation |
 | --- | --- |
-| Uses Selfie Check meaningfully | [`src/app/onboarding/selfie-check.tsx:5`](src/app/onboarding/selfie-check.tsx#L5) |
-| Treated as an abuse-prevention signal | [`src/lib/world.ts:148`](src/lib/world.ts#L148) — nullifier under a `UNIQUE` constraint: one human, one seller |
-| Enforced, not decorative | [`src/app/api/services/create/route.ts:83`](src/app/api/services/create/route.ts#L83) — listing refused without verification |
-| Server-side proof verification | [`src/lib/world.ts:96`](src/lib/world.ts#L96) |
-| Tested via the Sandbox App | **Not yet** — credential is feature-gated. See [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) |
+| Uses Selfie Check, or a compatible credential flow, meaningfully | [`src/lib/world-credentials.ts`](src/lib/world-credentials.ts) — the credential is configuration, so every ungated option runs the identical live path |
+| Treated as an **abuse-prevention** signal | [`src/lib/quota.ts`](src/lib/quota.ts) — the free-tool allowance is keyed to the nullifier, so one person has one allowance however many agents they register |
+| Treated as a **risk / eligibility** signal | [`requiredDeposit`](src/lib/config.ts) — the dispute deposit is priced by assurance level: Orb 5 ℏ, Selfie Check 10 ℏ, Device 25 ℏ |
+| Treated as a sybil signal | [`src/lib/world.ts`](src/lib/world.ts) — the seller nullifier sits under a `UNIQUE` constraint: one human, one seller account |
+| Enforced, not decorative | [`services/create`](src/app/api/services/create/route.ts) refuses a listing; the gateway returns `429` when an allowance is spent |
+| Server-side proof verification, with a downgrade guard | [`verifyProof`](src/lib/world.ts) — only World's answer is trusted, and a credential we did not ask for is refused |
+| Setup verifiable without a phone | `npm run world:preflight` and `GET /api/world/status` |
+| Tested via the Sandbox App | Set `WORLD_ENVIRONMENT=sandbox`. See [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) for what blocked us |
 | Feedback document | [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) |
 
 ### Cross-cutting
@@ -356,7 +387,8 @@ reimplementing them.
 | Disputes refunded from the seller's deposit | [`src/lib/claims.ts:175`](src/lib/claims.ts#L175) |
 | Deterministic auto-adjudication | [`src/lib/claims.ts:143`](src/lib/claims.ts#L143) |
 | Deposit verified on-chain via mirror node | [`src/lib/hedera.ts:160`](src/lib/hedera.ts#L160) |
-| Agent spending caps enforced pre-signature | [`src/lib/agent.ts:213`](src/lib/agent.ts#L213), and again on chain via [`src/lib/mandate.ts`](src/lib/mandate.ts) |
+| Agent spending caps enforced pre-signature | [`src/lib/wallet.ts`](src/lib/wallet.ts) — balance, per-call and daily caps checked before any debit |
+| Free-tool abuse bounded by proof of a person | [`src/lib/quota.ts`](src/lib/quota.ts) |
 | Payment replay guard | [`src/app/x402/[slug]/route.ts:155`](src/app/x402/%5Bslug%5D/route.ts#L155) |
 | SSRF protection on seller endpoints | [`src/lib/ssrf.ts:76`](src/lib/ssrf.ts#L76) |
 

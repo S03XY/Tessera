@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { recentCalls, marketStats } from "@/lib/repo";
-import { formatAmount } from "@/lib/money";
+import { formatAmount, isFreePrice } from "@/lib/money";
 import { hashscanTx } from "@/lib/config";
 import {
   EmptyState,
@@ -106,7 +106,11 @@ export default async function ActivityPage() {
                   </Td>
                   <Td align="right" className="whitespace-nowrap">
                     <Mono className="text-ink">
-                      {call.paid_amount ? `${formatAmount(call.paid_amount)} ℏ` : "—"}
+                      {call.paid_amount === null
+                        ? "—"
+                        : isFreePrice(call.paid_amount)
+                          ? "free"
+                          : `${formatAmount(call.paid_amount)} ℏ`}
                     </Mono>
                   </Td>
                   <Td>

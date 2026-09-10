@@ -14,40 +14,109 @@ signature proves nothing at all.
 
 Integration points:
 [`src/lib/world.ts`](src/lib/world.ts) ·
+[`src/lib/world-credentials.ts`](src/lib/world-credentials.ts) ·
 [`src/app/onboarding/selfie-check.tsx`](src/app/onboarding/selfie-check.tsx) ·
-[`src/app/api/services/create/route.ts`](src/app/api/services/create/route.ts)
+[`src/app/api/services/create/route.ts`](src/app/api/services/create/route.ts) ·
+[`scripts/world-preflight.mjs`](scripts/world-preflight.mjs)
 
 ---
 
 ## Status of our testing — please read first
 
-**We could not complete an end-to-end Sandbox App run.** Selfie Check is
-feature-gated, and both the credential page and the sandbox testing page say
-access must be requested through a World point of contact. We have no way to
-self-serve that during a hackathon weekend, so:
+**Selfie Check itself is access-gated and was never enabled for our app**, so
+we could not capture a Selfie Check proof. We would rather say that plainly
+than imply a green run we did not have.
 
-- The client integration, RP-context signing, proof forwarding and backend
-  verification are all implemented against the documented v4 API and the
-  shipped IDKit type definitions.
-- Because the credential could not be enabled, we added a clearly-labelled
-  simulation mode (`WORLD_SIMULATION=1`) so the rest of the product could be
-  built and demonstrated. It records the credential as
-  `selfie_check_simulated`, never as a real one; the UI labels every such
-  seller as simulated; and `/api/health` reports `world_id: "simulated"`. It
-  is not a Selfie Check and we are not presenting it as one. Removing the flag
-  and setting the RP signing key switches to the real flow with no code change.
-- The seller gate is implemented and tested: an unverified account is refused
-  a listing, and the one-human-one-account constraint is enforced.
-- The actual capture → proof → verify round trip through the Sandbox App is
-  **untested by us**, because we could not get the credential enabled.
+What *is* implemented and live:
 
-We would rather say that plainly than imply a green run we did not have. Every
-observation below is about the docs, the SDK surface and the Developer Portal,
-which we could reach.
+- The full v4 path — server-signed `rp_context`, capture in World App, the
+  proof forwarded verbatim to `/api/v4/verify/{rp_id}`, and only World's
+  answer trusted. The client never asserts its own success.
+- **Which credential the gate demands is configuration, not code**
+  (`WORLD_CREDENTIAL`). Every ungated credential — Orb, Proof of Human,
+  Document, Secure Document, Passport, Device — runs through the identical
+  code path and produces a real nullifier. We built it this way precisely
+  because an integration that only works once someone answers an email is an
+  integration that cannot be demonstrated. Switching to Selfie Check the day
+  it is enabled is one environment variable and no code change.
+- A **downgrade guard**: World reports which credential actually satisfied a
+  proof, and we refuse any identifier we did not ask for. Without it, a
+  device-level proof could be recorded against a seller as a Selfie Check
+  pass. We could find no documentation suggesting integrators should check
+  this, and we think it deserves a warning on the verify reference — the field
+  is right there in the response and it is easy to ignore.
+- The seller gate itself: an unverified account is refused a listing, and the
+  one-human-one-account rule is enforced by a `UNIQUE` constraint on the
+  nullifier rather than by a heuristic.
+
+`WORLD_SIMULATION=1` remains as a fallback for a clone with no World
+credentials at all. It records the credential as `selfie_check_simulated`,
+never as a real one; the UI labels every such seller as simulated; and
+`/api/health` reports it. A valid configuration always beats it — the live
+path takes over even if the flag is still set, because a deployment that can
+prove humans should never quietly keep pretending to. It is not a World ID
+proof and we are not presenting it as one.
 
 ---
 
-## 1. Selfie Check docs and integration flow
+## 1. Getting to a working configuration
+
+Before any of the SDK observations below, the single hardest part of this
+integration was working out *why* it did not work. Four separate things must
+be true before a capture can succeed, and the failure of any one of them is
+invisible until a person is standing in front of a camera:
+
+1. The app exists in the Developer Portal.
+2. The action exists under it.
+3. The app has been migrated to World ID 4.0.
+4. The credential is enabled for the app.
+
+**Nothing surfaces which of the four is missing.** We had an `app_id` and an
+`rp_id` in hand and assumed we were one signing key away from working. We were
+not — the app had never been migrated, and the v4 verify endpoint answers every
+proof from an unmigrated app with `app_not_migrated`. There is no indication of
+this state anywhere a developer looks while integrating: the portal shows the
+app, IDKit accepts the configuration, and the code runs. The error only appears
+after a real human has completed a real capture, which is the most expensive
+possible moment to discover a configuration problem.
+
+We ended up writing a preflight script that diagnoses all four by probing
+World's own endpoints with deliberately invalid proofs and reading which error
+comes back — `invalid_action` means the app resolved but the action did not,
+`app_not_migrated` means the migration was never done, and anything else means
+both resolved. That works, but it is reverse-engineering error codes to
+recover information the Developer Portal already has and does not show.
+
+**What would fix this:** a readiness panel on the app page listing those four
+preconditions with a tick or a cross against each, and a "test configuration"
+button that runs the same probes server-side. Every one of these facts is
+already known to World. Surfacing them would have saved us most of a day, and
+would save every subsequent integrator the same day.
+
+**Three World sources disagree about `environment`, and only one is right.**
+The IDKit integration guide says the field accepts *"production"* and
+*"staging"* and that staging is *"for testing with the simulator"*. The v4
+verify API reference lists the enum as `production | staging`. The Sandbox
+guide says to *"set `environment: sandbox`"*. The shipped TypeScript type
+allows all three. We resolved it by posting a deliberate typo to the verify
+endpoint, which answered:
+
+> `environment must be one of the following values: production, staging, sandbox`
+
+So `sandbox` is correct and two documentation pages are stale. A developer
+following the IDKit guide — the page you would naturally read first — would
+configure `staging` and never reach the Sandbox App at all. Reconciling those
+three pages is a small edit with a large payoff.
+
+**The signing key is shown once, with no warning that it is.** It is issued
+during the 4.0 migration alongside the `rp_id`. If you close that screen — or
+if someone else on the team completed the migration — the key is simply gone,
+and nothing in the portal explains how to rotate or re-issue it. A one-line
+"you will not see this again" and a visible rotate control would be enough.
+
+---
+
+## 2. Selfie Check docs and integration flow
 
 **The credential page is a description, not an integration guide.**
 `docs.world.org/world-id/credentials/11` explains what Selfie Check is and
@@ -92,7 +161,7 @@ the single most confusing part of the integration.
 
 ---
 
-## 2. Developer Portal — navigation, search, discovery, debugging
+## 3. Developer Portal — navigation, search, discovery, debugging
 
 **Product discovery is fine; credential discovery is not.** Finding World ID
 is easy. Working out which credentials exist, which are generally available,
@@ -126,7 +195,7 @@ which want different fixes.
 
 ---
 
-## 3. Sandbox App — states, proof flows, test users, edge cases
+## 4. Sandbox App — states, proof flows, test users, edge cases
 
 We could not exercise these, so this section is about the documentation of the
 sandbox rather than the sandbox itself.
@@ -158,7 +227,7 @@ integration are written from the type definitions and remain unexercised.
 
 ---
 
-## 4. What was confusing, missing, broken, or hard to test
+## 5. What was confusing, missing, broken, or hard to test
 
 **Confusing**
 
