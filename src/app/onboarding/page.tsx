@@ -7,8 +7,24 @@ import { OnboardingFlow } from "./flow";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Become a seller" };
 
-export default function OnboardingPage() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/**
+ * Sellers and operators need different things from this page.
+ *
+ * A seller wants to know whether they can verify right now. The operator wants
+ * to know which Developer Portal setting is missing — which is debug output,
+ * and pointing it at customers is how a product ends up telling strangers to
+ * edit a file they will never have access to. `?setup=1` separates the two.
+ * Nothing secret hides behind it; it is an audience switch, not a permission.
+ */
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   const world = describeWorld();
+  const setupView = "setup" in (await searchParams);
 
   return (
     <Page className="max-w-[860px]">
@@ -28,6 +44,7 @@ export default function OnboardingPage() {
       </div>
 
       <OnboardingFlow
+        setupView={setupView}
         worldMode={world.mode}
         credentialLabel={world.credential_label}
         worldProblem={world.problem}

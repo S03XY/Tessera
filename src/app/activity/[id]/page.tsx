@@ -205,11 +205,9 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
               </p>
             ) : !receiptsConfigured ? (
               <Callout tone="neutral">
-                No HCS topic is configured, so receipts queue instead of being
-                written. Set <span className="font-mono">HEDERA_OPERATOR_ID</span>,{" "}
-                <span className="font-mono">HEDERA_OPERATOR_KEY</span> and{" "}
-                <span className="font-mono">HEDERA_RECEIPT_TOPIC_ID</span> to enable
-                them.
+                Consensus receipts are not enabled on this marketplace yet, so
+                this call is queued and will be written once they are. The call
+                itself, its hashes and its payment are already recorded above.
               </Callout>
             ) : receipt?.last_error ? (
               <Callout tone="bad" title={`Failed after ${receipt.attempts} attempt(s)`}>

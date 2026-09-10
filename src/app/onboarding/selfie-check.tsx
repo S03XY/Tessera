@@ -126,7 +126,7 @@ export function SelfieCheckButton({
       if (!body.preset || !(body.preset in PRESETS)) {
         setMessage({
           tone: "bad",
-          text: `This build cannot request the "${body.credential}" credential. Check WORLD_CREDENTIAL.`,
+          text: "Verification is not available right now. Please try again shortly.",
         });
         return;
       }
@@ -230,10 +230,12 @@ function describeIdKitError(code: string): string {
     max_verifications_reached: "This World ID has already verified as many times as this action allows.",
     inclusion_proof_pending:
       "Your World ID is still being registered on-chain. Try again in a few minutes.",
-    invalid_rp_signature:
-      "World rejected this app's request signature — WORLD_RP_SIGNING_KEY does not match WORLD_RP_ID.",
-    unknown_rp: "World does not recognise this app's rp_id.",
-    inactive_rp: "This app is disabled in the World Developer Portal.",
+    // These three are the marketplace's own misconfiguration, not anything the
+    // person holding the phone did or can fix. They are told it is our fault
+    // and to try later; the operator sees the real cause in `?setup=1`.
+    invalid_rp_signature: "Verification is misconfigured on our side. Please try again later.",
+    unknown_rp: "Verification is misconfigured on our side. Please try again later.",
+    inactive_rp: "Verification is unavailable on our side. Please try again later.",
     rp_signature_expired: "The request expired before you finished. Start the check again.",
     world_id_4_not_available: "Update World App — this version cannot produce the required proof.",
     connection_failed: "World App could not reach World. Check its connection and try again.",

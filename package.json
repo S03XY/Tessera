@@ -19,9 +19,11 @@
     "provision": "node scripts/provision.mjs",
     "db:seed:mcp": "node scripts/seed-mcp.mjs",
     "e2e:mcp": "node scripts/mcp-e2e.mjs",
+    "agent:gemini": "node scripts/agent-gemini.mjs",
     "world:preflight": "node scripts/world-preflight.mjs"
   },
   "dependencies": {
+    "@google/genai": "^2.21.0",
     "@hiero-ledger/sdk": "^2.85.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "@worldcoin/idkit": "^4.2.2",

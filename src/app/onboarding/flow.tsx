@@ -38,6 +38,7 @@ export function OnboardingFlow({
   worldMode,
   credentialLabel,
   worldProblem,
+  setupView,
   chainConfigured,
   treasury,
   minimumDeposit,
@@ -46,6 +47,8 @@ export function OnboardingFlow({
   worldMode: "live" | "simulated" | "unavailable";
   credentialLabel: string;
   worldProblem: string | null;
+  /** True on `?setup=1`: show the operator's diagnostics rather than a seller's view. */
+  setupView: boolean;
   chainConfigured: boolean;
   treasury: string;
   minimumDeposit: string;
@@ -153,17 +156,39 @@ export function OnboardingFlow({
       >
         {worldMode !== "live" && !verified ? (
           <div className="space-y-4">
-            <Callout tone="warn" title="Not verifying against World yet">
-              {worldProblem ??
-                "World ID is configured, but the seller gate is still recording simulated passes."}{" "}
-              The checks below run against World&apos;s own endpoints, so they
-              say which part of the Developer Portal setup is outstanding.
-            </Callout>
-
-            <WorldSetupPanel />
+            {/*
+              A seller is told what they can do about it, which is wait. The
+              operator is told which setting is missing. Same state, two
+              audiences — and the seller's version names nothing they cannot
+              act on.
+            */}
+            {setupView ? (
+              <>
+                <Callout tone="warn" title="Not verifying against World yet">
+                  {worldProblem ??
+                    "World ID is configured, but the seller gate is still recording simulated passes."}{" "}
+                  The checks below run against World&apos;s own endpoints, so
+                  they say which part of the Developer Portal setup is
+                  outstanding.
+                </Callout>
+                <WorldSetupPanel />
+              </>
+            ) : worldMode === "unavailable" ? (
+              <Callout tone="warn" title="Verification is unavailable">
+                Identity checks are temporarily offline, so new sellers cannot
+                be verified right now. Nothing you have entered is lost — come
+                back shortly and start here again.
+              </Callout>
+            ) : (
+              <Callout tone="warn" title="Preview mode">
+                This marketplace is running a stand-in for the identity check
+                while it is being set up. Your account will be marked as
+                unverified until a real check is available.
+              </Callout>
+            )}
 
             {worldMode === "simulated" && (
-              <div className="border-t border-line pt-4">
+              <div className={setupView ? "border-t border-line pt-4" : ""}>
                 <SelfieCheckButton
                   accountId={accountId.trim()}
                   displayName={displayName.trim()}
@@ -201,11 +226,18 @@ export function OnboardingFlow({
         description={`At least ${minimumLabel} held against refunds. An upheld dispute is paid out of this balance.`}
       >
         {!chainConfigured ? (
-          <Callout tone="warn" title="No treasury configured">
-            Set <span className="font-mono">HEDERA_OPERATOR_ID</span> and{" "}
-            <span className="font-mono">HEDERA_OPERATOR_KEY</span> so deposits
-            can be verified against the mirror node.
-          </Callout>
+          setupView ? (
+            <Callout tone="warn" title="No treasury configured">
+              Set <span className="font-mono">HEDERA_OPERATOR_ID</span> and{" "}
+              <span className="font-mono">HEDERA_OPERATOR_KEY</span> so deposits
+              can be verified against the mirror node.
+            </Callout>
+          ) : (
+            <Callout tone="warn" title="Deposits are unavailable">
+              This marketplace cannot confirm deposits at the moment, so
+              listings are paused. Try again shortly.
+            </Callout>
+          )
         ) : (
           <DepositForm
             accountId={accountId.trim()}
