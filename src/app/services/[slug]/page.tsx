@@ -105,7 +105,7 @@ export default async function ServiceDetailPage({
             {service.status !== "active"
               ? `The service is ${service.status}.`
               : service.seller_status !== "verified"
-                ? "The seller has not completed World ID verification."
+                ? "This account is not registered as a seller."
                 : "The seller's dispute deposit has fallen below the marketplace minimum, so the gateway refuses new calls."}
           </Callout>
         </div>

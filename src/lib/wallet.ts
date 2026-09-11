@@ -45,8 +45,6 @@ export interface AgentAccount {
    * agents. What it buys is a shared free-call allowance rather than an
    * exclusive identity — see `@/lib/quota`.
    */
-  world_nullifier: string | null;
-  world_credential: string | null;
   verified_at: string | null;
 }
 
@@ -137,27 +135,6 @@ export async function authenticateAgent(token: string | null): Promise<AgentAcco
 
 export async function getAgentById(id: string): Promise<AgentAccount | null> {
   return queryOne<AgentAccount>(`SELECT * FROM agents WHERE id = $1`, [id]);
-}
-
-/**
- * Records that a human has been proven behind this agent.
- *
- * There is deliberately no uniqueness check here. A person running ten agents
- * is ordinary, and refusing the tenth would achieve nothing — the allowance is
- * keyed to the nullifier, so all ten draw from one bucket regardless.
- */
-export async function verifyAgentHuman(
-  agentId: string,
-  nullifier: string,
-  credential: string,
-): Promise<AgentAccount | null> {
-  return queryOne<AgentAccount>(
-    `UPDATE agents
-        SET world_nullifier = $2, world_credential = $3, verified_at = now()
-      WHERE id = $1 AND revoked_at IS NULL
-      RETURNING *`,
-    [agentId, nullifier, credential],
-  );
 }
 
 /* -------------------------------------------------------------- Registration */

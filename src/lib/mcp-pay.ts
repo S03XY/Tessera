@@ -287,8 +287,7 @@ export async function payAndCall(
      * The seller is paying the upstream bill for every one of these, so the
      * allowance is spent *before* the call goes out rather than after — the
      * whole point is to not make the request. A caller who is over their
-     * allowance is told how to raise it, which for an unverified one is a
-     * thirty-second World ID check rather than a payment.
+     * allowance is told which limit stopped them and when it resets.
      */
     const bucket = bucketFor(agent, input.clientKey ?? anonymousKey(null, null));
     const quota = await consumeFreeCall(bucket);

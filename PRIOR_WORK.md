@@ -38,7 +38,7 @@ contemplates.
 | Discovery | `GET /api/services` — a machine-readable directory |
 | Buyer agent | `src/lib/agent.ts` — discovers, compares prices, pays, obeys a spending cap |
 | Disputes | `src/lib/claims.ts` — claims, deterministic adjudication, refunds from the seller's deposit |
-| Sybil gate | `src/lib/world.ts` — World ID, one human one seller, enforced server-side |
+| Seller gate | `src/lib/config.ts` — a refundable dispute deposit, enforced server-side |
 | Receipts | `src/lib/receipts.ts` — request/response digests to Hedera Consensus Service |
 | Safety | `src/lib/ssrf.ts` — SSRF protection on seller-supplied URLs |
 | UI | Home, services, sellers, agent console, activity log, onboarding, docs |
@@ -170,21 +170,12 @@ already scoped rather than aspirational.
 
 Named here on purpose. Each is a real limitation, not a rough edge.
 
-1. **World ID runs in simulation mode until the Developer Portal setup is
-   finished.** Selfie Check is feature-gated by World and must be switched on
-   per-app. The live path is complete and any ungated credential runs it —
-   `WORLD_CREDENTIAL` chooses. Until then a simulated pass is stored as
-   `selfie_check_simulated`, labelled as simulated everywhere in the UI, and
-   reported by `/api/health`. It is not a World ID proof. Run
-   `npm run world:preflight` for the exact state. See
-   [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md).
-
-2. **The marketplace never holds call revenue** — payment goes directly from
+1. **The marketplace never holds call revenue** — payment goes directly from
    buyer to seller. It does control the discovery database and the receipt
    topic, and it does custody seller dispute deposits. That is the honest
    trust boundary.
 
-3. **Separate chains are separate.** Where Tessera offers payment on more
+2. **Separate chains are separate.** Where Tessera offers payment on more
    than one network, those networks have no connection to each other and
    nothing bridges between them. It is one paywall offering a menu of
    independent settlement options, which is what x402 was designed for.

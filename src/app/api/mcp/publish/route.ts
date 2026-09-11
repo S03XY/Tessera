@@ -4,7 +4,6 @@ import { getSellerByAccount } from "@/lib/repo";
 import { fetchSpec, normaliseSlug, planFromSpec, publishServer, PublishError } from "@/lib/publish";
 import { BASE_URL, MCP_MAX_TOOLS, requiredDeposit } from "@/lib/config";
 import { formatAmount, PRICE_UNITS } from "@/lib/money";
-import { credentialSpec } from "@/lib/world";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,8 +13,8 @@ export const maxDuration = 60;
  * Publish a seller's API as an MCP server.
  *
  * The same gate as any other listing, in the same order, so the error tells
- * the seller what to fix first: registered, verified, funded. An MCP server is
- * a bundle of listings and gets no softer treatment than one — every tool it
+ * the seller what to fix first: registered, then funded. An MCP server is a
+ * bundle of listings and gets no softer treatment than one — every tool it
  * publishes is backed by the seller's dispute deposit exactly as a hand-written
  * listing is.
  */
@@ -83,23 +82,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "not_a_seller",
-        message: `This account is not registered. Complete World ID ${credentialSpec().label} first.`,
+        message: "This account is not registered as a seller. Register it first.",
       },
       { status: 403 },
     );
   }
 
-  if (seller.verification_status !== "verified") {
-    return NextResponse.json(
-      {
-        error: "not_verified",
-        message: `This seller has not passed World ID ${credentialSpec().label}.`,
-      },
-      { status: 403 },
-    );
-  }
-
-  const required = requiredDeposit(seller.world_credential);
+  const required = requiredDeposit();
   if (BigInt(seller.deposit_amount) < required) {
     return NextResponse.json(
       {
@@ -108,7 +97,6 @@ export async function POST(request: NextRequest) {
           `A dispute deposit of at least ${formatAmount(required)} ℏ is required ` +
           `before publishing. This seller has ${formatAmount(seller.deposit_amount)} ℏ.`,
         required: required.toString(),
-        credential: seller.world_credential,
       },
       { status: 403 },
     );

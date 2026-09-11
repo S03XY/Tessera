@@ -73,7 +73,7 @@ function needsToken() {
 function listingSummary(service: ServiceListing) {
   const payable =
     service.seller_status === "verified" &&
-    BigInt(service.seller_deposit) >= requiredDeposit(service.seller_credential);
+    BigInt(service.seller_deposit) >= requiredDeposit();
 
   return {
     slug: service.slug,
@@ -310,18 +310,15 @@ export function registerMarketplaceTools(
           balance_atomic: agent.balance,
           spent_today_atomic: spent.toString(),
         },
-        // Free tools are limited too, and by a different thing entirely: not
-        // money but proof of a person. Registering more agents does not raise
-        // it, because the allowance belongs to the human, not the agent.
+        // Free tools are limited too, and by a different thing entirely:
+        // not money but how well we know the caller. Funding the agent does
+        // not move this — money buys paid tools, not free ones.
         free_calls: {
           tier: free.kind,
           used: free.used,
           limit: free.limit,
           remaining: Math.max(free.limit - free.used, 0),
-          raise_it:
-            free.kind === "human"
-              ? null
-              : "POST /api/agents/verify with a World ID proof to draw from the human allowance.",
+          resets: "midnight UTC",
         },
       });
     },

@@ -95,7 +95,7 @@ async function handle(
       "The seller behind this service is not verified and cannot take payments.",
     );
   }
-  if (BigInt(service.seller_deposit) < requiredDeposit(service.seller_credential)) {
+  if (BigInt(service.seller_deposit) < requiredDeposit()) {
     return problem(
       409,
       "seller_underfunded",

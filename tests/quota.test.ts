@@ -9,18 +9,15 @@ import {
   releaseFreeCall,
   type Bucket,
 } from "@/lib/quota";
-import { SIMULATED_CREDENTIAL } from "@/lib/world-credentials";
-import { worldMode } from "@/lib/world";
 
 /**
  * The free-tool allowance.
  *
  * Two things matter here and both are security properties rather than
  * conveniences. The first is that the tier a caller lands in reflects what
- * they can actually prove — an unrecognised credential must never buy the
- * human tier, and a simulated one may only do so while the deployment is
- * itself simulating. The second is that the counter holds under concurrency,
- * because a limit enforced by read-then-write is not a limit.
+ * they actually presented, so an authenticated agent never silently shares
+ * the anonymous bucket. The second is that the counter holds under
+ * concurrency, because a limit enforced by read-then-write is not a limit.
  */
 
 const KEYS = ["test-bucket-a", "test-bucket-b", "test-bucket-c", "test-bucket-d"];
@@ -36,27 +33,21 @@ afterEach(async () => {
 /* ------------------------------------------------------------- tier choice */
 
 describe("bucketFor", () => {
-  const verified = {
-    id: "agent-1",
-    world_nullifier: "0xhuman",
-    world_credential: "selfie_check",
-  };
-
-  it("puts a proven human on the human tier, keyed to the nullifier", () => {
-    const result = bucketFor(verified, "anon");
-    expect(result.kind).toBe("human");
-    // Keyed to the person, not the agent — so a second agent shares it.
-    expect(result.key).toBe("0xhuman");
-  });
-
-  it("pools every agent of one human into a single allowance", () => {
-    const second = bucketFor({ ...verified, id: "agent-2" }, "anon");
-    expect(second.key).toBe(bucketFor(verified, "anon").key);
-  });
-
-  it("falls to the agent tier for a registered but unproven agent", () => {
-    const result = bucketFor({ id: "agent-1", world_nullifier: null }, "anon");
+  it("keys a registered agent to its own id", () => {
+    const result = bucketFor({ id: "agent-1" }, "anon");
     expect(result.kind).toBe("agent");
+    expect(result.key).toBe("agent-1");
+  });
+
+  it("gives each agent its own allowance", () => {
+    expect(bucketFor({ id: "agent-1" }, "anon").key).not.toBe(
+      bucketFor({ id: "agent-2" }, "anon").key,
+    );
+  });
+
+  it("prefers the token over the address when both are available", () => {
+    // Otherwise every agent behind one NAT would share a bucket.
+    const result = bucketFor({ id: "agent-1" }, "shared-anon-key");
     expect(result.key).toBe("agent-1");
   });
 
@@ -66,44 +57,10 @@ describe("bucketFor", () => {
     expect(result.key).toBe("anon-key");
   });
 
-  it("lets a simulated pass hold the human tier only while simulating", () => {
-    // The stand-in has to behave like the real thing or the flow cannot be
-    // built against it — but it is labelled, never described as verified.
-    const result = bucketFor(
-      { id: "agent-1", world_nullifier: "sim_abc", world_credential: SIMULATED_CREDENTIAL },
-      "anon",
+  it("gives a registered agent a larger allowance than an anonymous caller", () => {
+    expect(bucketFor({ id: "a" }, "anon").limit).toBeGreaterThan(
+      bucketFor(null, "anon").limit,
     );
-    if (worldMode() === "simulated") {
-      expect(result.kind).toBe("human");
-      expect(result.label).toBe("simulated human");
-    } else {
-      // Once World is configured, a leftover simulated row loses the tier.
-      expect(result.kind).toBe("agent");
-    }
-  });
-
-  it("refuses the human tier to an unrecognised credential", () => {
-    const result = bucketFor(
-      { id: "agent-1", world_nullifier: "0xhuman", world_credential: "selfie-check-seed" },
-      "anon",
-    );
-    expect(result.kind).toBe("agent");
-  });
-
-  it("refuses the human tier to a nullifier with no credential recorded", () => {
-    const result = bucketFor(
-      { id: "agent-1", world_nullifier: "0xhuman", world_credential: null },
-      "anon",
-    );
-    expect(result.kind).toBe("agent");
-  });
-
-  it("gives a human a larger allowance than an agent, and an agent more than anonymous", () => {
-    const human = bucketFor(verified, "anon").limit;
-    const agent = bucketFor({ id: "a", world_nullifier: null }, "anon").limit;
-    const anon = bucketFor(null, "anon").limit;
-    expect(human).toBeGreaterThan(agent);
-    expect(agent).toBeGreaterThan(anon);
   });
 });
 
@@ -157,7 +114,7 @@ describe("consumeFreeCall", () => {
 
   it("keeps the same key in different tiers separate", async () => {
     await consumeFreeCall(bucket(KEYS[0], 5, "agent"));
-    expect(await quotaStatus(bucket(KEYS[0], 5, "human"))).toMatchObject({ used: 0 });
+    expect(await quotaStatus(bucket(KEYS[0], 5, "anonymous"))).toMatchObject({ used: 0 });
   });
 
   it("does not overshoot under concurrency", async () => {
@@ -213,27 +170,15 @@ describe("exhaustedMessage", () => {
       label: "anonymous",
     });
     expect(message).toMatch(/Register an agent/);
-    expect(message).toMatch(/World ID/);
   });
 
-  it("tells a registered agent that more agents will not help", () => {
+  it("tells a registered agent when it resets, and not to expect a way up", () => {
     const message = exhaustedMessage({
       allowed: false,
       used: 100,
       limit: 100,
       kind: "agent",
       label: "registered agent",
-    });
-    expect(message).toMatch(/per person/);
-  });
-
-  it("tells a verified human only when it resets", () => {
-    const message = exhaustedMessage({
-      allowed: false,
-      used: 2500,
-      limit: 2500,
-      kind: "human",
-      label: "verified human",
     });
     expect(message).toMatch(/resets/);
     expect(message).not.toMatch(/Register an agent/);

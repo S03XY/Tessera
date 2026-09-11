@@ -6,7 +6,6 @@ import { assertPublicUrl, UnsafeUrlError } from "@/lib/ssrf";
 import { PRICE_UNITS } from "@/lib/money";
 import { requiredDeposit } from "@/lib/config";
 import { formatAmount } from "@/lib/money";
-import { credentialSpec } from "@/lib/world";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,11 +13,10 @@ export const dynamic = "force-dynamic";
 /**
  * Listing creation — the gate.
  *
- * Three conditions, checked in this order so the error tells the seller what
- * to fix first:
+ * Two conditions, checked in this order so the error tells the seller what to
+ * fix first:
  *   1. the account is a registered seller
- *   2. The configured World ID credential has been proven
- *   3. the dispute deposit is at or above the minimum
+ *   2. the dispute deposit is at or above the minimum
  *
  * The endpoint URL is validated against the SSRF rules here as well as at
  * call time, so an obviously-internal address is rejected at listing rather
@@ -71,28 +69,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "not_a_seller",
-        message:
-          `This account is not registered. Complete World ID ${credentialSpec().label} first.`,
+        message: "This account is not registered as a seller. Register it first.",
       },
       { status: 403 },
     );
   }
 
-  if (seller.verification_status !== "verified") {
-    return NextResponse.json(
-      {
-        error: "not_verified",
-        message:
-          `This account has not passed World ID ${credentialSpec().label}. Verification is required before listing a service.`,
-      },
-      { status: 403 },
-    );
-  }
-
-  // Priced by the credential this seller actually proved: the deposit exists
-  // to make them replaceable-at-a-cost, and that cost is exactly what a
-  // personhood credential measures.
-  const required = requiredDeposit(seller.world_credential);
+  const required = requiredDeposit();
   if (BigInt(seller.deposit_amount) < required) {
     return NextResponse.json(
       {
@@ -104,7 +87,6 @@ export async function POST(request: NextRequest) {
         )} ℏ.`,
         required: required.toString(),
         held: seller.deposit_amount,
-        credential: seller.world_credential,
       },
       { status: 403 },
     );

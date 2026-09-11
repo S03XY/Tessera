@@ -19,15 +19,12 @@
     "provision": "node scripts/provision.mjs",
     "db:seed:mcp": "node scripts/seed-mcp.mjs",
     "e2e:mcp": "node scripts/mcp-e2e.mjs",
-    "agent:gemini": "node scripts/agent-gemini.mjs",
-    "world:preflight": "node scripts/world-preflight.mjs"
+    "agent:gemini": "node scripts/agent-gemini.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
     "@hiero-ledger/sdk": "^2.85.0",
     "@modelcontextprotocol/server": "^2.0.0",
-    "@worldcoin/idkit": "^4.2.2",
-    "@worldcoin/idkit-core": "^4.2.3",
     "@x402/core": "^2.23.0",
     "@x402/hedera": "^2.23.0",
     "mcp-handler": "^2.1.1",

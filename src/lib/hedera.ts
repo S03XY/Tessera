@@ -13,6 +13,11 @@ import { HEDERA_NETWORK, MIRROR_NODE_URL, operator, chainConfigured } from "@/li
  * creation). Payments never come through here — those are the facilitator's.
  */
 
+/** Hedera account ids look like `0.0.12345`. */
+export function isHederaAccountId(value: string): boolean {
+  return /^\d+\.\d+\.\d+$/.test(value.trim());
+}
+
 export class ChainNotConfiguredError extends Error {
   constructor() {
     super(

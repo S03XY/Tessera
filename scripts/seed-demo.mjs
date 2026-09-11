@@ -333,10 +333,10 @@ export async function seedDemo(client) {
       const { rows } = await client.query(
         `INSERT INTO sellers
            (account_id, display_name, contact_url, verification_status,
-            verified_at, world_nullifier, world_credential,
+            verified_at,
             deposit_amount, deposit_asset, deposit_tx,
             ats_token_id, ats_holder_address)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'0.0.0',$9,$10,$11)
+         VALUES ($1,$2,$3,$4,$5,$6,'0.0.0',$7,$8,$9)
          ON CONFLICT (account_id) DO UPDATE
            SET display_name        = EXCLUDED.display_name,
                ats_token_id        = EXCLUDED.ats_token_id,
@@ -348,8 +348,6 @@ export async function seedDemo(client) {
           seller.contact_url,
           seller.verified ? "verified" : "unverified",
           seller.verified ? new Date() : null,
-          seller.verified ? `seed-nullifier-${seller.key}` : null,
-          seller.verified ? "selfie-check-seed" : null,
           seller.deposit,
           `seed-deposit-${seller.key}`,
           seller.ats?.token_id ?? null,

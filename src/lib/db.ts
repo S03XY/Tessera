@@ -33,7 +33,15 @@ function createPool(): Pool {
     ssl: isManaged ? { rejectUnauthorized: false } : undefined,
     max: isManaged ? 3 : 10,
     idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 8_000,
+    /*
+     * Opening a connection to a distant pooled Postgres is itself slow — a
+     * cold connect to Supabase measured ~4s from here — so an 8s ceiling
+     * leaves almost no headroom once a few callers are queued behind the
+     * pool's limit, and surfaces as "connection terminated due to connection
+     * timeout" rather than as anything to do with the query. Local Postgres
+     * connects in single-digit milliseconds and never approaches either bound.
+     */
+    connectionTimeoutMillis: isManaged ? 30_000 : 8_000,
     allowExitOnIdle: true,
   });
 }

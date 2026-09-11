@@ -1,9 +1,4 @@
 import * as React from "react";
-import {
-  credentialLabel,
-  REAL_CREDENTIALS,
-  SIMULATED_CREDENTIAL,
-} from "@/lib/world-credentials";
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -796,28 +791,21 @@ export function VerifiedTick({ className }: { className?: string }) {
 }
 
 /**
- * Only a credential this app itself obtained from World counts as verified.
- * Everything else — the simulation, seeded demo fixtures, anything
- * unrecognised — is labelled, because the alternative is a badge claiming a
- * verification that never happened.
+ * What a registered seller's standing actually rests on: money at risk.
  *
- * The allowlist is the credential registry itself, so it fails closed: a
- * value that is not a credential we can actually request reads as unverified
- * rather than silently inheriting the real badge. The badge names whichever
- * credential the seller actually holds — a seller who passed an Orb check
- * should not be described as having passed Selfie Check.
+ * Registration alone is free and says nothing, so the badge reports the
+ * deposit rather than the registration — a seller whose deposit has fallen
+ * below the minimum reads as short here at the same moment the gateway starts
+ * refusing their calls, rather than continuing to look approved.
  */
-export function VerificationBadge({ credential }: { credential: string | null }) {
-  if (credential && REAL_CREDENTIALS.has(credential)) {
-    return (
-      <Badge tone="ok" dot>
-        {credentialLabel(credential)}
-      </Badge>
-    );
-  }
-  return (
+export function VerificationBadge({ funded }: { funded: boolean }) {
+  return funded ? (
+    <Badge tone="ok" dot>
+      Deposit backed
+    </Badge>
+  ) : (
     <Badge tone="warn" dot>
-      {credential === SIMULATED_CREDENTIAL ? "World ID · simulated" : "World ID · demo fixture"}
+      Deposit short
     </Badge>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verificationStatus, isHederaAccountId } from "@/lib/world";
+import { verificationStatus } from "@/lib/repo";
+import { isHederaAccountId } from "@/lib/hedera";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

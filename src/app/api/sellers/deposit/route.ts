@@ -4,7 +4,7 @@ import { query, queryOne } from "@/lib/db";
 import { verifyDepositTransfer } from "@/lib/hedera";
 import { chainConfigured, operator, MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import { formatAmount } from "@/lib/money";
-import { isHederaAccountId } from "@/lib/world";
+import { isHederaAccountId } from "@/lib/hedera";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
   if (!seller) {
     return NextResponse.json(
-      { error: "not_a_seller", message: "Complete World ID verification first." },
+      { error: "not_a_seller", message: "Register this account as a seller first." },
       { status: 403 },
     );
   }

@@ -33,7 +33,6 @@ export interface SellerRow {
   contact_url: string | null;
   verification_status: "unverified" | "verified" | "revoked";
   verified_at: string | null;
-  world_credential: string | null;
   deposit_amount: string;
   deposit_asset: string;
   deposit_tx: string | null;
@@ -103,7 +102,6 @@ export interface ServiceListing extends ServiceRow {
   seller_name: string;
   seller_account: string;
   seller_status: SellerRow["verification_status"];
-  seller_credential: string | null;
   seller_deposit: string;
   success_rate: number | null;
 
@@ -144,7 +142,6 @@ const LISTING_SELECT = `
          sel.display_name        AS seller_name,
          sel.account_id          AS seller_account,
          sel.verification_status AS seller_status,
-         sel.world_credential    AS seller_credential,
          sel.deposit_amount      AS seller_deposit,
          CASE WHEN (s.calls_ok + s.calls_failed) > 0
               THEN s.calls_ok::float / (s.calls_ok + s.calls_failed)
@@ -459,4 +456,26 @@ const UUID_RE =
 
 export function isUuid(value: string): boolean {
   return UUID_RE.test(value);
+}
+
+/**
+ * A seller's own view of their standing: are they registered, how much is on
+ * deposit, and how many listings does it currently back.
+ */
+export async function verificationStatus(accountId: string) {
+  const rows = await query<{
+    account_id: string;
+    display_name: string;
+    verification_status: string;
+    verified_at: string | null;
+    deposit_amount: string;
+    service_count: string;
+  }>(
+    `SELECT sel.account_id, sel.display_name, sel.verification_status,
+            sel.verified_at, sel.deposit_amount,
+            (SELECT count(*)::text FROM services WHERE seller_id = sel.id) AS service_count
+       FROM sellers sel WHERE sel.account_id = $1`,
+    [accountId],
+  );
+  return rows[0] ?? null;
 }

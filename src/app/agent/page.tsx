@@ -3,7 +3,6 @@ import { formatAmount } from "@/lib/money";
 import { queryOne } from "@/lib/db";
 import { hashscanAccount } from "@/lib/config";
 import { bucketFor, quotaStatus } from "@/lib/quota";
-import { credentialLabel } from "@/lib/world-credentials";
 import { Badge, KeyValue, Mono, Page, PageHeader, Panel, PanelHeader } from "@/components/ui";
 import { AgentConsole } from "./console";
 
@@ -20,19 +19,16 @@ export default async function AgentPage() {
       per_call_cap: string | null;
       per_day_cap: string | null;
       revoked_at: string | null;
-      world_nullifier: string | null;
-      world_credential: string | null;
     }>(
       `SELECT id, label, owner_account, agent_account, per_call_cap, per_day_cap,
-              revoked_at, world_nullifier, world_credential
+              revoked_at
          FROM agents ORDER BY created_at LIMIT 1`,
     ),
     spentToday(),
   ]);
 
-  // The free-tool allowance this agent draws from. Keyed to the human behind
-  // it when one has been proven, which is the only key a person cannot cheaply
-  // multiply by registering more agents.
+  // The free-tool allowance this agent draws from. Keyed to the token it
+  // presents, which is a better key than the address it happens to call from.
   const freeBucket = bucketFor(agent, "");
   const free = await quotaStatus(freeBucket);
 
@@ -58,13 +54,12 @@ export default async function AgentPage() {
         <div className="space-y-5">
           <Panel
             /*
-             * The allowance is the one control on this screen that money
-             * cannot lift, so it gets the lit edge: paying more does not raise
-             * it, and neither does registering another agent. Only proving a
-             * person does.
+             * The allowance is the one control on this screen that money does
+             * not lift, so a registered agent gets the lit edge: funding buys
+             * paid tools, not a bigger free bucket.
              */
             className={`h-fit overflow-hidden ${
-              free.kind === "human"
+              free.kind === "agent"
                 ? "border-line-3 shadow-[inset_0_1px_0_var(--edge-hi-strong),0_0_0_1px_rgba(255,255,255,0.06)]"
                 : ""
             }`}
@@ -73,7 +68,7 @@ export default async function AgentPage() {
               title="Free-tool allowance"
               description="What this agent may call for nothing today."
               actions={
-                <Badge tone={free.kind === "human" ? "ok" : "warn"} dot>
+                <Badge tone={free.kind === "agent" ? "ok" : "warn"} dot>
                   {free.label}
                 </Badge>
               }
@@ -104,23 +99,15 @@ export default async function AgentPage() {
                 />
               </div>
               <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
-                {free.kind === "human"
-                  ? "Proven by a World ID credential, so the allowance belongs to the person rather than the token. Every agent they run shares this one bucket — registering more does not raise it."
-                  : "Registering a second agent would not raise this: the larger allowance is keyed to a World ID nullifier, which is the one identifier a person cannot cheaply multiply. Prove a human at POST /api/agents/verify."}
+                {free.kind === "agent"
+                  ? "Keyed to this agent's token, and reset at midnight UTC. Funding the agent does not raise it — money buys paid tools, not free ones."
+                  : "Unauthenticated callers share a smaller allowance keyed to a hash of their address. Register an agent at POST /api/agents/register to draw the larger one."}
               </p>
             </div>
             <KeyValue
               items={[
                 { label: "Tier", value: <Mono>{free.kind}</Mono> },
                 { label: "Used today", value: <Mono>{free.used.toLocaleString()}</Mono> },
-                {
-                  label: "Credential",
-                  value: agent?.world_credential ? (
-                    <Mono>{credentialLabel(agent.world_credential)}</Mono>
-                  ) : (
-                    <span className="text-[12px] text-ink-4">none</span>
-                  ),
-                },
               ]}
             />
           </Panel>

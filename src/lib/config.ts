@@ -81,60 +81,28 @@ export const treasuryConfigured = Boolean(treasury.accountId && treasury.private
 export const MCP_MAX_TOOLS = envInt(process.env.MCP_MAX_TOOLS, 40);
 
 /**
- * Baseline deposit a seller must hold to keep listings active (10 ℏ).
+ * The deposit a seller must hold to keep listings active (10 ℏ).
  *
- * Also the fallback for any credential we do not recognise, so an unfamiliar
- * value never lowers the bar by accident.
+ * The deposit exists to make a bad listing cost the seller something: a buyer
+ * sold a broken response can claim against the call, and an upheld claim is
+ * paid out of this. It is a refundable bond rather than a fee — a seller who
+ * leaves takes it with them.
  */
 export const MIN_DEPOSIT_TINYBARS = 1_000_000_000n;
 
-/**
- * The deposit, priced by how strongly the seller proved they are a person.
- *
- * The deposit exists to make a bad listing cost the seller something, so what
- * it really prices is how cheaply this seller could be replaced by a fresh
- * one. That is exactly what a personhood credential measures: an Orb-verified
- * seller cannot mint a second identity at all, so less collateral is needed;
- * a device-level "proof" is one app install, so more is.
- *
- * Read the other way round, this is what a thirty-second face check is worth
- * to a seller in working capital — 15 ℏ they do not have to lock up. That is a
- * concrete answer to where a low-friction, low-assurance credential earns its
- * place: not as a gate that decides *whether* you may trade, but as a price
- * that decides *on what terms*.
- */
-export const DEPOSIT_BY_CREDENTIAL: Record<string, bigint> = {
-  orb: 500_000_000n,
-  passport: 500_000_000n,
-  secure_document: 500_000_000n,
-
-  selfie_check: 1_000_000_000n,
-  proof_of_human: 1_000_000_000n,
-  document: 1_000_000_000n,
-
-  // One human can hold several devices, so this proves the least and costs
-  // the most. It is still allowed — the point is that it is priced, not banned.
-  device: 2_500_000_000n,
-};
-
-/** What this seller must hold, given the credential they actually proved. */
-export function requiredDeposit(credential: string | null | undefined): bigint {
-  if (!credential) return MIN_DEPOSIT_TINYBARS;
-  return DEPOSIT_BY_CREDENTIAL[credential] ?? MIN_DEPOSIT_TINYBARS;
+/** What a seller must hold for their listings to stay callable. */
+export function requiredDeposit(): bigint {
+  return MIN_DEPOSIT_TINYBARS;
 }
 
 /**
  * The same rule as SQL, for queries that filter the catalogue.
  *
- * Generated from the map above so the two cannot drift apart. Every value is
- * one of our own constants and every key one of our own identifiers, so there
- * is nothing here a caller could influence.
+ * Kept as a function rather than inlining the literal at each call site so
+ * that the threshold has exactly one definition, in this file.
  */
-export function requiredDepositSql(column = "sel.world_credential"): string {
-  const arms = Object.entries(DEPOSIT_BY_CREDENTIAL)
-    .map(([credential, amount]) => `WHEN '${credential}' THEN ${amount}`)
-    .join(" ");
-  return `CASE ${column} ${arms} ELSE ${MIN_DEPOSIT_TINYBARS} END`;
+export function requiredDepositSql(): string {
+  return String(MIN_DEPOSIT_TINYBARS);
 }
 
 /** Window during which a buyer may dispute a delivered call. */

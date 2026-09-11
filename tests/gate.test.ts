@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 
 /**
- * The seller gate. This is the acceptance test for the World ID track:
+ * The seller gate. This is the acceptance test for the deposit rule:
  * an unverified account cannot list, and neither can an underfunded one.
  */
 
@@ -72,14 +72,15 @@ describe("listing gate — refuses", () => {
     expect(body.error).toBe("not_a_seller");
   });
 
-  it("a registered seller who has not passed Selfie Check", async () => {
+  it("a seller row that exists but has posted no deposit", async () => {
+    // Registration alone buys nothing: the deposit is the gate.
     const { status, body } = await create(listing(UNVERIFIED, "Unverified Feed"));
     expect(status).toBe(403);
-    expect(body.error).toBe("not_verified");
-    expect(body.message).toMatch(/Selfie Check/);
+    expect(body.error).toBe("deposit_too_low");
+    expect(BigInt(body.held)).toBe(0n);
   });
 
-  it("a verified seller whose deposit is below the minimum", async () => {
+  it("a seller whose deposit is below the minimum", async () => {
     const { status, body } = await create(listing(VERIFIED_SHORT, "Lowline Extra"));
     expect(status).toBe(403);
     expect(body.error).toBe("deposit_too_low");

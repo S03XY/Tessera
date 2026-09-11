@@ -355,11 +355,10 @@ function ForSellers() {
       </Callout>
 
       <p className="mt-5 max-w-2xl text-[12.5px] leading-relaxed text-ink-3">
-        The same gate as any other listing applies: prove you are a distinct human with
-        World ID, and put a refundable dispute deposit at risk. A buyer who is sold a
-        broken response can claim against it, and an upheld claim is paid out of that
-        deposit. Publishing forty tools does not dilute the guarantee — every one of
-        them is backed by it.
+        The same gate as any other listing applies: register the account and put a
+        refundable dispute deposit at risk. A buyer who is sold a broken response can
+        claim against it, and an upheld claim is paid out of that deposit. Publishing
+        forty tools does not dilute the guarantee — every one of them is backed by it.
       </p>
     </MarginSection>
   );

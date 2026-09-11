@@ -8,9 +8,8 @@ subscription — the `402 Payment Required` status code does the negotiating.
 
 Three things make it more than a payment demo:
 
-1. **Sellers must prove they are a distinct human and put money at risk.**
-   World ID Selfie Check plus a refundable dispute deposit, both enforced by
-   the API before a listing can go live.
+1. **Sellers must put money at risk.** A refundable dispute deposit, enforced
+   by the API before a listing can go live and re-checked on every call.
 2. **A bad response can be disputed**, and an upheld claim refunds the buyer
    out of the seller's deposit.
 3. **Pricing is metered, not flat.** A response of 5000 tokens genuinely costs
@@ -78,86 +77,31 @@ npm run dev         # http://localhost:3000
 | `HEDERA_OPERATOR_ID` / `HEDERA_OPERATOR_KEY` | Deposit verification, dispute refunds, HCS receipts |
 | `HEDERA_RECEIPT_TOPIC_ID` | Writing call/refund receipts to a consensus topic |
 | `AGENT_ACCOUNT_ID` / `AGENT_PRIVATE_KEY` | The buyer agent signing and completing real payments |
-| `WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_RP_SIGNING_KEY` | World ID verification |
-| `WORLD_CREDENTIAL` | Which credential the seller gate demands (default `selfie_check`) |
-| `WORLD_ENVIRONMENT` | `production`, `staging` or `sandbox` — `sandbox` targets the Sandbox App |
-| `WORLD_SIMULATION=1` | Stand-in when no World credentials are configured at all |
 | `CRON_SECRET` | Guards the receipt-drain cron endpoint |
 
 Testnet accounts come from [portal.hedera.com](https://portal.hedera.com).
-World credentials come from [developer.world.org](https://developer.world.org).
 
-#### Setting up World ID
+#### What the free-tool allowance does
 
-Four things must be true before a real capture works. Check all of them at
-once, without a phone and without moving the signing key anywhere:
-
-```bash
-npm run world:preflight
-```
-
-The same verdicts appear in the app itself, on **/onboarding**, whenever the
-gate is not live — so setup never requires terminal access. Both read
-`GET /api/world/status`, which probes World's own endpoints and returns only
-pass/fail. The signing key stays in `.env.local` and is never returned.
-
-1. **The app is migrated to World ID 4.0.** Use the *Enable World ID 4.0*
-   banner in the Developer Portal. This is the step that issues `WORLD_RP_ID`
-   **and** `WORLD_RP_SIGNING_KEY` — the key is shown once. Without it the v4
-   verify endpoint answers `app_not_migrated` to every proof.
-2. **The action exists.** `WORLD_ACTION` must match an Incognito Action
-   created under the app, or World answers `invalid_action`.
-3. **The credential is available to the app.** Selfie Check is access-gated
-   and must be switched on by World; the other credentials are not. Set
-   `WORLD_CREDENTIAL` accordingly — every option runs the identical live path
-   (server-signed RP context, capture in World App, proof verified by World,
-   real nullifier), so only the assurance level changes.
-4. **`WORLD_RP_SIGNING_KEY` is set.** This single variable is what separates
-   live mode from simulation. A valid configuration always wins: the live path
-   takes over even if `WORLD_SIMULATION=1` is still present, because a
-   deployment that can prove humans should never quietly keep pretending to.
-
-#### What the credential actually buys
-
-World ID is not a door here, it is a price. A low-assurance credential earns
-its place by being *proportionate*, so it is used twice, for two risks:
-
-**Free-tool allowance (abuse prevention).** A free tool takes no payment and
-needs no token, so nothing else limits it — the seller pays their upstream bill
-for whoever finds the URL. The allowance is therefore keyed to the scarcest
-identifier available: a nullifier.
+A free tool takes no payment and needs no token, so nothing else limits it —
+the seller pays their upstream bill for whoever finds the URL. The allowance is
+what bounds that.
 
 | Caller | Free calls / day | Keyed to |
 | --- | --- | --- |
 | Anonymous | 25 | coarse hash of origin |
 | Registered agent | 100 | agent id |
-| Verified human | 2,500 | **nullifier** |
 
-Registering a second agent does not double anything: every agent of one person
-draws from that person's single bucket. Demanding an Orb to use a *free* tool
-would be friction far out of proportion to the risk — the downside of a wrong
-grant is some upstream API calls, not money — which is exactly the case for a
-low-friction credential. Tune with `FREE_LIMIT_ANONYMOUS`, `FREE_LIMIT_AGENT`,
-`FREE_LIMIT_HUMAN`.
+Funding an agent does not raise it: money buys paid tools, not free ones. Tune
+with `FREE_LIMIT_ANONYMOUS` and `FREE_LIMIT_AGENT`.
 
-**Dispute deposit (risk pricing).** The deposit makes a bad listing cost the
-seller something, so what it prices is how cheaply that seller could be
-replaced by a fresh one — which is what a personhood credential measures.
+#### The dispute deposit
 
-| Credential | Deposit |
-| --- | --- |
-| Orb, Passport, Secure Document | 5 ℏ |
-| Selfie Check, Proof of Human, Document | 10 ℏ |
-| Device | 25 ℏ |
-
-Read the other way round: a thirty-second face check is worth 15 ℏ of working
-capital a seller does not have to lock up, and 2,400 free calls a day.
-
-> `WORLD_SIMULATION=1` records clearly-labelled simulated passes so the seller
-> gate and the demo work before any of the above is done. A simulated pass
-> stores the credential as `selfie_check_simulated`, is labelled as simulated
-> everywhere in the UI, and is reported by `/api/health` as
-> `world_id: "simulated"`. **It is not a World ID proof.**
+The deposit makes a bad listing cost the seller something. Every seller holds
+at least **10 ℏ**, refundable, and an upheld dispute is paid out of it — so
+every listing a seller publishes is backed by the same balance. It is checked
+when a listing is created and again on every call, so a seller who withdraws
+below the minimum stops being callable immediately.
 
 ### 5. Tests
 
@@ -221,7 +165,7 @@ account read live from its `/supported` endpoint rather than hardcoded.
 | `src/lib/metering.ts` | Unit metering and response trimming |
 | `src/lib/agent.ts` | The autonomous buyer |
 | `src/lib/claims.ts` | Disputes and refunds from deposit |
-| `src/lib/world.ts` | Selfie Check verification and the sybil gate |
+| `src/lib/quota.ts` | The free-tool allowance |
 | `src/lib/receipts.ts` | HCS receipt outbox and drain |
 | `src/lib/ssrf.ts` | Endpoint safety for seller-supplied URLs |
 | `db/migrations/` | Schema |
@@ -365,20 +309,6 @@ work done during ETHOnline 2026.
 | On-chain agent identity, HCS-14 | [`src/lib/agent-identity.ts`](src/lib/agent-identity.ts) — Universal Agent IDs derived from canonical public inputs (SHA-384, base58), published for the buyer and every seller through `/api/services`. Derived rather than assigned, so a counterparty can recompute it without this marketplace vouching |
 | Verifiable payment audit trails on HCS | [`src/lib/receipts.ts:50`](src/lib/receipts.ts#L50), [`src/lib/hedera.ts:80`](src/lib/hedera.ts#L80) |
 | Fee-payer / custom settlement path | [`src/lib/x402.ts:40`](src/lib/x402.ts#L40) — fee payer read live from `/supported` |
-
-### World — Selfie Check
-
-| Requirement | Implementation |
-| --- | --- |
-| Uses Selfie Check, or a compatible credential flow, meaningfully | [`src/lib/world-credentials.ts`](src/lib/world-credentials.ts) — the credential is configuration, so every ungated option runs the identical live path |
-| Treated as an **abuse-prevention** signal | [`src/lib/quota.ts`](src/lib/quota.ts) — the free-tool allowance is keyed to the nullifier, so one person has one allowance however many agents they register |
-| Treated as a **risk / eligibility** signal | [`requiredDeposit`](src/lib/config.ts) — the dispute deposit is priced by assurance level: Orb 5 ℏ, Selfie Check 10 ℏ, Device 25 ℏ |
-| Treated as a sybil signal | [`src/lib/world.ts`](src/lib/world.ts) — the seller nullifier sits under a `UNIQUE` constraint: one human, one seller account |
-| Enforced, not decorative | [`services/create`](src/app/api/services/create/route.ts) refuses a listing; the gateway returns `429` when an allowance is spent |
-| Server-side proof verification, with a downgrade guard | [`verifyProof`](src/lib/world.ts) — only World's answer is trusted, and a credential we did not ask for is refused |
-| Setup verifiable without a phone | `npm run world:preflight` and `GET /api/world/status` |
-| Tested via the Sandbox App | Set `WORLD_ENVIRONMENT=sandbox`. See [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) for what blocked us |
-| Feedback document | [`WORLD_FEEDBACK.md`](WORLD_FEEDBACK.md) |
 
 ### Cross-cutting
 

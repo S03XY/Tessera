@@ -18,7 +18,6 @@ import {
   Th,
   VerificationBadge,
 } from "@/components/ui";
-import { describeWorld } from "@/lib/world";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +75,7 @@ export default async function SellerPage({
             {seller.display_name}
           </h1>
           {seller.verification_status === "verified" ? (
-            <VerificationBadge credential={seller.world_credential} />
+            <VerificationBadge funded={!short} />
           ) : (
             <Badge tone="warn" dot>
               unverified
@@ -96,9 +95,9 @@ export default async function SellerPage({
       {seller.verification_status !== "verified" && (
         <div className="mt-5">
           <Callout tone="warn" title="Cannot list services">
-            This account has not completed World ID {describeWorld().credential_label}. Verification is
-            required before any listing goes live, which is what stops the
-            marketplace filling with duplicate sellers.
+            This account is not registered as a seller. Registration and a
+            funded dispute deposit are both required before any listing goes
+            live.
           </Callout>
         </div>
       )}

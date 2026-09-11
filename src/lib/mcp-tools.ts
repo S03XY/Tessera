@@ -469,10 +469,10 @@ export function marketplaceTools(): McpToolDefinition[] {
       title: "Check what you are allowed to spend",
       description:
         "Read every limit that governs this agent: the per-call and daily caps on " +
-        "paid tools, and the separate daily allowance for free ones. The free " +
-        "allowance is not raised by paying or by registering another agent — it is " +
-        "keyed to the human behind the agent — so call this when anything is refused " +
-        "to find out which limit stopped it and how to lift it. Free.",
+        "paid tools, and the separate daily allowance for free ones. The two are " +
+        "independent — funding the agent raises what it can spend, not what it can " +
+        "call for nothing — so call this when anything is refused to find out which " +
+        "limit stopped it. Free.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
     },

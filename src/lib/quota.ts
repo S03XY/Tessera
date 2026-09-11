@@ -1,30 +1,23 @@
 import { createHash } from "node:crypto";
 import { queryOne } from "@/lib/db";
-import { CREDENTIALS, SIMULATED_CREDENTIAL } from "@/lib/world-credentials";
-import { worldMode } from "@/lib/world";
 
 /**
  * The free-tool allowance.
  *
  * Paid tools are rate limited by the thing that makes them paid: an agent with
- * an empty balance stops calling. Free tools have no such brake, and after the
- * free/paid pivot they need no token and no account either — so the seller,
- * not the caller, absorbs the cost of abuse against their upstream API.
+ * an empty balance stops calling. Free tools have no such brake, and they need
+ * no token and no account either — so the seller, not the caller, absorbs the
+ * cost of abuse against their upstream API.
  *
- * What is scarce here is not money but *identity*. Tokens and IP addresses are
- * free to mint in bulk, so an allowance keyed to either is an allowance keyed
- * to nothing. A World ID nullifier is the one identifier in the system that a
- * person cannot cheaply multiply, which is exactly what a quota wants.
- *
- * This is also the case for a *low-assurance* credential specifically. The
- * downside of wrongly granting the larger allowance is some upstream API calls
- * — not money, not a payout, not a dispute. Requiring an Orb to use a free
- * tool would impose friction wildly out of proportion to the risk, and most
- * agent developers would simply not bother. A thirty-second selfie is
- * proportionate; an in-person iris scan is not.
+ * What the allowance is really rationing is not money but *how well we know
+ * the caller*. An address is free to change and a token is free to mint, so
+ * neither tier is a hard bound on one determined person; what they do bound is
+ * the cost of casual abuse, which is what actually shows up in practice. The
+ * numbers are set so that ordinary evaluation never hits them and a loop does
+ * so within seconds.
  */
 
-export type BucketKind = "human" | "agent" | "anonymous";
+export type BucketKind = "agent" | "anonymous";
 
 export interface Bucket {
   kind: BucketKind;
@@ -37,16 +30,15 @@ export interface Bucket {
 /**
  * Daily free calls by how well we know the caller.
  *
- * The gap between `agent` and `human` is the whole argument. Registering a
- * second agent is free and instant, so that tier is generous only in the sense
- * that it is easy to reach — it caps what any one identity can take, but not
- * what one person can take by registering repeatedly. The human tier is the
- * only one where the number actually binds a person.
+ * Registering an agent is free and instant, so the `agent` tier is generous in
+ * the sense that it is easy to reach — it caps what any one identity can take
+ * rather than what one person can take by registering repeatedly. That is the
+ * accepted trade: the downside of a wrongly granted allowance is some upstream
+ * API calls, not money, not a payout, and not a dispute.
  */
 export const FREE_LIMITS: Record<BucketKind, number> = {
   anonymous: 25,
   agent: 100,
-  human: 2_500,
 };
 
 /** Overridable so a deployment can tune the allowance without a code change. */
@@ -69,46 +61,13 @@ export function anonymousKey(forwardedFor: string | null, realIp: string | null)
 }
 
 /**
- * Is this credential good enough to draw the human allowance?
- *
- * Real credentials always are. The simulated one counts *only* while the
- * deployment is itself in simulation mode — that is what makes the stand-in
- * useful for building and demonstrating the flow, and the restriction is what
- * stops it becoming a back door: the moment World is configured, a leftover
- * simulated row drops back to the agent tier rather than silently keeping an
- * allowance it never proved it deserved.
- */
-function grantsHumanTier(credential: string | null | undefined): boolean {
-  if (!credential) return false;
-  if (credential in CREDENTIALS) return true;
-  return credential === SIMULATED_CREDENTIAL && worldMode() === "simulated";
-}
-
-/**
  * Which allowance a caller draws from.
  *
- * Ordered strongest-identity-first. A verified agent draws from its owner's
- * human bucket, so a person who runs ten agents still has one allowance
- * between them — otherwise verification would be a way to *multiply* quota
- * rather than to justify a larger one.
+ * Ordered strongest-identity-first: a presented token is a better key than a
+ * network address, so an authenticated agent never falls back to the shared
+ * anonymous bucket for the address it happens to be calling from.
  */
-export function bucketFor(
-  agent: { id: string; world_nullifier?: string | null; world_credential?: string | null } | null,
-  anonKey: string,
-): Bucket {
-  if (agent && agent.world_nullifier && grantsHumanTier(agent.world_credential)) {
-    return {
-      kind: "human",
-      key: agent.world_nullifier,
-      limit: limitFor("human"),
-      // Named so an operator reading a log or an error can tell at a glance
-      // whether the allowance rests on a real proof.
-      label:
-        agent.world_credential === SIMULATED_CREDENTIAL
-          ? "simulated human"
-          : "verified human",
-    };
-  }
+export function bucketFor(agent: { id: string } | null, anonKey: string): Bucket {
   if (agent) {
     return { kind: "agent", key: agent.id, limit: limitFor("agent"), label: "registered agent" };
   }
@@ -209,19 +168,14 @@ export async function quotaStatus(bucket: Bucket): Promise<QuotaResult> {
 /**
  * What to tell a caller who has run out.
  *
- * The point of the message is the remedy: every tier below `human` has a way
- * up, and the way up is proportionate to what is being asked for.
+ * The point of the message is the remedy, so the anonymous tier is told the
+ * one thing that lifts it and the agent tier is told plainly that there isn't
+ * a self-service way up — better than implying one that does not exist.
  */
 export function exhaustedMessage(result: QuotaResult): string {
   const base = `Free-call allowance exhausted: ${result.used}/${result.limit} today for this ${result.label}.`;
   if (result.kind === "anonymous") {
-    return `${base} Register an agent to raise it, or verify with World ID for the full allowance.`;
+    return `${base} Register an agent to raise it, or fund one to call paid tools.`;
   }
-  if (result.kind === "agent") {
-    return (
-      `${base} Verify this agent's owner with World ID to draw from the human allowance — ` +
-      "registering more agents will not help, since the allowance is per person."
-    );
-  }
-  return `${base} It resets at midnight UTC.`;
+  return `${base} It resets at midnight UTC. Fund this agent to call paid tools in the meantime.`;
 }

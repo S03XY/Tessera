@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbReachable } from "@/lib/db";
 import { facilitatorSupportsNetwork } from "@/lib/x402";
-import { describeWorld, worldMode } from "@/lib/world";
 import {
   chainConfigured,
   DEPOSIT_BOND_TOKEN_ID,
@@ -39,10 +38,6 @@ export async function GET() {
       // is reported as absent, never worked around with a fabricated result.
       graph: graphMode(),
       deposit_bond: DEPOSIT_BOND_TOKEN_ID || null,
-      // "simulated" means World ID passes are stand-ins, not real proofs.
-      world_id: worldMode(),
-      // Which credential the seller gate demands, and why it might not work.
-      world: describeWorld(),
       network: X402_NETWORK,
       facilitator_url: FACILITATOR_URL,
     },

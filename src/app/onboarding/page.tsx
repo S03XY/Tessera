@@ -1,5 +1,4 @@
 import { Page, PageHeader, Callout } from "@/components/ui";
-import { describeWorld } from "@/lib/world";
 import { chainConfigured, operator, MIN_DEPOSIT_TINYBARS } from "@/lib/config";
 import { formatAmount } from "@/lib/money";
 import { OnboardingFlow } from "./flow";
@@ -23,7 +22,6 @@ export default async function OnboardingPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const world = describeWorld();
   const setupView = "setup" in (await searchParams);
 
   return (
@@ -31,23 +29,19 @@ export default async function OnboardingPage({
       <PageHeader
         eyebrow="Supply side"
         title="Become a seller"
-        description="Two gates stand between an account and a live listing: proof of a distinct human, and money at risk. Both are enforced by the API, not just this page."
+        description="One gate stands between an account and a live listing: money at risk. It is enforced by the API, not just this page."
       />
 
       <div className="mb-5">
-        <Callout tone="neutral" title="Why the gates exist">
-          Without verification, one person lists fifty services and disappears
-          with the payments. Without a deposit, a bad response costs the seller
-          nothing. World ID {world.credential_label} answers the first; the
-          refundable deposit answers the second.
+        <Callout tone="neutral" title="Why the deposit exists">
+          Without money at risk, a bad response costs the seller nothing. The
+          deposit is refundable and stays theirs — it is what an upheld dispute
+          is paid from, so every listing a seller publishes is backed by it.
         </Callout>
       </div>
 
       <OnboardingFlow
         setupView={setupView}
-        worldMode={world.mode}
-        credentialLabel={world.credential_label}
-        worldProblem={world.problem}
         chainConfigured={chainConfigured}
         treasury={operator.accountId || "not configured"}
         minimumDeposit={MIN_DEPOSIT_TINYBARS.toString()}

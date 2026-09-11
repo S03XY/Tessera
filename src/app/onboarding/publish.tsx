@@ -54,14 +54,12 @@ const DEFAULT_PRICE = "90000";
 
 export function PublishForm({
   accountId,
-  verified,
+  registered,
   funded,
-  credentialLabel = "verification",
 }: {
   accountId: string;
-  verified: boolean;
+  registered: boolean;
   funded: boolean;
-  credentialLabel?: string;
 }) {
   const [specUrl, setSpecUrl] = useState("https://api.weather.gov/openapi.json");
   const [maxTools, setMaxTools] = useState("8");
@@ -74,7 +72,7 @@ export function PublishForm({
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [publishing, setPublishing] = useState(false);
 
-  const blocked = !accountId || !verified || !funded;
+  const blocked = !accountId || !registered || !funded;
 
   async function runPreview(event: React.FormEvent) {
     event.preventDefault();
@@ -342,7 +340,7 @@ export function PublishForm({
             </Button>
             {blocked && (
               <span className="text-[12px] text-ink-4">
-                Complete World ID {credentialLabel} and the deposit above first.
+                Register the account and post the deposit above first.
               </span>
             )}
           </div>

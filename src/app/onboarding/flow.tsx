@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 import { PublishForm } from "./publish";
-import dynamic from "next/dynamic";
 import {
   Badge,
   Button,
@@ -13,40 +12,24 @@ import {
   PanelHeader,
   cx,
 } from "@/components/ui";
-import { SIMULATED_CREDENTIAL } from "@/lib/world-credentials";
-
-import { WorldSetupPanel } from "./world-setup";
-
-// IDKit pulls in WASM and touches window; keep it off the server render.
-const SelfieCheckButton = dynamic(
-  () => import("./selfie-check").then((m) => m.SelfieCheckButton),
-  { ssr: false, loading: () => <Button disabled>Loading World ID…</Button> },
-);
 
 interface Status {
   account_id: string;
   display_name: string;
   verification_status: string;
   deposit_amount: string;
-  world_credential: string | null;
   service_count: string;
 }
 
 type StepState = "todo" | "active" | "done";
 
 export function OnboardingFlow({
-  worldMode,
-  credentialLabel,
-  worldProblem,
   setupView,
   chainConfigured,
   treasury,
   minimumDeposit,
   minimumLabel,
 }: {
-  worldMode: "live" | "simulated" | "unavailable";
-  credentialLabel: string;
-  worldProblem: string | null;
   /** True on `?setup=1`: show the operator's diagnostics rather than a seller's view. */
   setupView: boolean;
   chainConfigured: boolean;
@@ -59,12 +42,9 @@ export function OnboardingFlow({
   const [status, setStatus] = useState<Status | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
 
-  const verified = status?.verification_status === "verified";
-  // A simulated pass must never read as a real one, so it is checked against
-  // the stored credential rather than inferred from the current server mode —
-  // a deployment can be switched to live while old simulated rows remain.
-  const simulatedPass = status?.world_credential === SIMULATED_CREDENTIAL;
+  const registered = status?.verification_status === "verified";
   const funded = status ? BigInt(status.deposit_amount) >= BigInt(minimumDeposit) : false;
 
   const refresh = useCallback(
@@ -90,6 +70,35 @@ export function OnboardingFlow({
     },
     [accountId],
   );
+
+  /**
+   * Registration is idempotent on the account id, so a seller who submits
+   * twice updates their display name rather than colliding — and the status
+   * refresh afterwards is what advances the step, so the panel always reflects
+   * what the server stored rather than what this form hoped it would.
+   */
+  const register = useCallback(async () => {
+    if (!accountId.trim()) return;
+    setRegistering(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/sellers/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          account_id: accountId.trim(),
+          display_name: displayName.trim() || undefined,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) setError(body.message ?? "Could not register this account.");
+      else await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not register this account.");
+    } finally {
+      setRegistering(false);
+    }
+  }, [accountId, displayName, refresh]);
 
   return (
     <div className="space-y-4">
@@ -138,7 +147,7 @@ export function OnboardingFlow({
         {status && (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px] text-ink-2">
             <span>{status.display_name}</span>
-            <Badge tone={verified ? "ok" : "warn"} dot>
+            <Badge tone={registered ? "ok" : "warn"} dot>
               {status.verification_status}
             </Badge>
             <Badge tone={funded ? "ok" : "warn"}>
@@ -150,79 +159,30 @@ export function OnboardingFlow({
 
       <Step
         index={2}
-        title={`Pass World ID ${credentialLabel}`}
-        state={verified ? "done" : accountId.trim() ? "active" : "todo"}
-        description="One human, one seller account. The nullifier is stored under a unique constraint, so the same person cannot register twice."
+        title="Register the seller account"
+        state={registered ? "done" : accountId.trim() ? "active" : "todo"}
+        description="Records who payouts go to. Registration on its own lists nothing — the deposit in the next step is the gate."
       >
-        {worldMode !== "live" && !verified ? (
-          <div className="space-y-4">
-            {/*
-              A seller is told what they can do about it, which is wait. The
-              operator is told which setting is missing. Same state, two
-              audiences — and the seller's version names nothing they cannot
-              act on.
-            */}
-            {setupView ? (
-              <>
-                <Callout tone="warn" title="Not verifying against World yet">
-                  {worldProblem ??
-                    "World ID is configured, but the seller gate is still recording simulated passes."}{" "}
-                  The checks below run against World&apos;s own endpoints, so
-                  they say which part of the Developer Portal setup is
-                  outstanding.
-                </Callout>
-                <WorldSetupPanel />
-              </>
-            ) : worldMode === "unavailable" ? (
-              <Callout tone="warn" title="Verification is unavailable">
-                Identity checks are temporarily offline, so new sellers cannot
-                be verified right now. Nothing you have entered is lost — come
-                back shortly and start here again.
-              </Callout>
-            ) : (
-              <Callout tone="warn" title="Preview mode">
-                This marketplace is running a stand-in for the identity check
-                while it is being set up. Your account will be marked as
-                unverified until a real check is available.
-              </Callout>
-            )}
-
-            {worldMode === "simulated" && (
-              <div className={setupView ? "border-t border-line pt-4" : ""}>
-                <SelfieCheckButton
-                  accountId={accountId.trim()}
-                  displayName={displayName.trim()}
-                  disabled={!accountId.trim()}
-                  simulated
-                  onVerified={() => refresh()}
-                />
-              </div>
-            )}
-          </div>
-        ) : verified ? (
-          <Callout
-            tone={simulatedPass ? "warn" : "ok"}
-            title={simulatedPass ? "Verified (simulated)" : "Verified"}
-          >
-            {simulatedPass
-              ? "Recorded via a simulated pass, not a real World ID proof."
-              : `${credentialLabel} passed. This account is a distinct, verified human.`}
+        {registered ? (
+          <Callout tone="ok" title="Registered">
+            {status?.display_name} is registered. Post the dispute deposit below
+            to make listings callable.
           </Callout>
         ) : (
-          <SelfieCheckButton
-            accountId={accountId.trim()}
-            displayName={displayName.trim()}
+          <Button
+            onClick={() => void register()}
+            loading={registering}
             disabled={!accountId.trim()}
-            simulated={worldMode === "simulated"}
-            onVerified={() => refresh()}
-          />
+          >
+            Register this account
+          </Button>
         )}
       </Step>
 
       <Step
         index={3}
         title="Post the dispute deposit"
-        state={funded ? "done" : verified ? "active" : "todo"}
+        state={funded ? "done" : registered ? "active" : "todo"}
         description={`At least ${minimumLabel} held against refunds. An upheld dispute is paid out of this balance.`}
       >
         {!chainConfigured ? (
@@ -243,8 +203,7 @@ export function OnboardingFlow({
             accountId={accountId.trim()}
             treasury={treasury}
             minimumLabel={minimumLabel}
-            disabled={!verified}
-            credentialLabel={credentialLabel}
+            disabled={!registered}
             onDeposited={() => refresh()}
           />
         )}
@@ -254,14 +213,13 @@ export function OnboardingFlow({
         index={4}
         title="Publish your API as an MCP server"
         state={funded ? "active" : "todo"}
-        description="Paste a specification. We shape it into tools, you price each one free or paid, and agents get a URL. Only reachable once both gates above are green — the API refuses a publish from an unverified or underfunded account."
+        description="Paste a specification. We shape it into tools, you price each one free or paid, and agents get a URL. Only reachable once both steps above are green — the API refuses a publish from an unregistered or underfunded account."
         last
       >
         <PublishForm
           accountId={accountId.trim()}
-          verified={verified}
+          registered={registered}
           funded={funded}
-          credentialLabel={credentialLabel}
         />
       </Step>
     </div>
@@ -337,14 +295,12 @@ function DepositForm({
   treasury,
   minimumLabel,
   disabled,
-  credentialLabel,
   onDeposited,
 }: {
   accountId: string;
   treasury: string;
   minimumLabel: string;
   disabled: boolean;
-  credentialLabel: string;
   onDeposited: () => void;
 }) {
   const [txId, setTxId] = useState("");
@@ -403,7 +359,7 @@ function DepositForm({
         Verify deposit
       </Button>
       {disabled && (
-        <p className="text-[12px] text-ink-3">Pass World ID {credentialLabel} first.</p>
+        <p className="text-[12px] text-ink-3">Register the account first.</p>
       )}
     </form>
   );
