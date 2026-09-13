@@ -33,9 +33,33 @@ export function hashscanTopic(topicId: string): string {
   return `${HASHSCAN_BASE}/topic/${encodeURIComponent(topicId)}`;
 }
 
-export const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL ??
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+/**
+ * The public address of this deployment.
+ *
+ * Used wherever the app hands a URL to someone else — MCP client config, curl
+ * examples, the `resource` in a 402 — and by the MCP payer, which calls back
+ * into its own `/x402` gateway. A wrong value is therefore not cosmetic: on a
+ * live site pointing at localhost, every paid tool call fails.
+ *
+ * On Vercel an explicit value that still says localhost is ignored. That is the
+ * value copied out of `.env.local` into the dashboard, and it can never be right
+ * there. Production then falls back to the project's stable domain rather than
+ * `VERCEL_URL`, which is a different throwaway hostname on every deploy.
+ */
+function resolveBaseUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
+  const onVercel = process.env.VERCEL === "1";
+  const isLocal = explicit ? /\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(explicit) : false;
+
+  if (explicit && !(onVercel && isLocal)) return explicit;
+  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+
+export const BASE_URL = resolveBaseUrl();
 
 /** Marketplace treasury — the account every buyer pays. */
 export const operator = {

@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { ClaimError, resolveClaim } from "@/lib/claims";
+import { drainReceipts } from "@/lib/receipts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,9 @@ export async function POST(
 
   try {
     const claim = await resolveClaim(id, parsed.data.decision, parsed.data.rationale);
+    // An upheld claim queues a refund receipt; submit it now rather than at the
+    // daily cron.
+    after(() => drainReceipts(5).catch(() => undefined));
     return NextResponse.json(claim);
   } catch (err) {
     if (err instanceof ClaimError) {

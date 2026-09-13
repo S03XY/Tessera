@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import type { PaymentRequirements } from "@x402/core/types";
 import { queryOne, transaction } from "@/lib/db";
 import { getServiceBySlug } from "@/lib/repo";
@@ -17,7 +17,7 @@ import {
   type Bucket,
 } from "@/lib/quota";
 import { authenticateAgent, parseBearer } from "@/lib/wallet";
-import { enqueueCallReceipt } from "@/lib/receipts";
+import { drainReceipts, enqueueCallReceipt } from "@/lib/receipts";
 import {
   executeSubgraphQuery,
   GraphNotConfiguredError,
@@ -566,6 +566,13 @@ async function handle(
     request_hash: requestHash,
     response_hash: responseHash,
   });
+
+  // Submitted once the response is on its way, so the receipt lands on the topic
+  // within seconds instead of waiting for the next cron run. The daily cron is
+  // only a backstop for anything this misses — Hobby plans cannot run it more
+  // often than that. SKIP LOCKED in the drain keeps concurrent calls from
+  // submitting the same row twice.
+  after(() => drainReceipts(5).catch(() => undefined));
 
   return new NextResponse(metered.body, {
     status: 200,

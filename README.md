@@ -117,10 +117,18 @@ rows clean up after themselves, so the seeded fixtures survive repeated runs.
 
 ### Deploying to Vercel
 
-`vercel.json` registers the receipt drain as a cron job every five minutes.
-Set the environment variables above in the Vercel dashboard, point
-`DATABASE_URL` at the Supabase pooler, and set `NEXT_PUBLIC_BASE_URL` to the
-deployment URL so the `resource` field in 402 responses is absolute.
+`vercel.json` registers the receipt drain as a daily cron job — the most a Hobby
+plan allows — which is only a backstop: receipts are normally submitted seconds
+after each call.
+Set the environment variables above in the Vercel dashboard and point
+`DATABASE_URL` at the Supabase pooler.
+
+`NEXT_PUBLIC_BASE_URL` is optional on Vercel: production resolves to the
+project's stable domain (`VERCEL_PROJECT_PRODUCTION_URL`) on its own. Set it
+explicitly only for a custom domain, or if system environment variables are
+disabled — and never paste the `localhost` value from `.env.local`. The base URL
+is not just display text: the MCP payer calls back into `/x402` through it, so a
+wrong value breaks every paid tool call.
 
 ---
 
@@ -223,8 +231,9 @@ transfer and the seller is paid.
 
 **5. Receipt.** The call is recorded with its transaction hash, and a receipt
 carrying the request and response digests is queued for the Hedera Consensus
-Service. Consensus takes seconds, so it is drained by cron rather than held on
-the request path — only digests go on-chain, never the bodies.
+Service. Consensus takes seconds, so it is submitted after the response has been
+sent rather than held on the request path, with a daily cron as a backstop for
+anything missed — only digests go on-chain, never the bodies.
 
 ### Metering
 
